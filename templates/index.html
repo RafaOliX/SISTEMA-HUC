@@ -1,0 +1,20 @@
+{% extends 'layout.html' %}
+{% block body %}
+<div class="container d-flex justify-content-center align-items-center mt-5">
+    <div class="card glass-effect p-4">
+        <h2 class="text-center mb-4">Iniciar Sesión</h2>
+        <form action="{{ url_for('login') }}" method="POST">
+            <div class="mb-3">
+                <input type="text" name="gmail" class="form-control" placeholder="Nombre de usuario" required>
+            </div>
+            <div class="mb-3">
+                <input type="password" name="contraseña" class="form-control" placeholder="Contraseña" required>
+            </div>
+            <button type="submit" class="btn btn-success w-100">Iniciar Sesión</button>
+        </form>
+        <div class="text-center mt-3">
+            <a href="{{ url_for('register') }}" class="btn btn-success w-100">Registrarse</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

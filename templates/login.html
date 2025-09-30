@@ -1,0 +1,15 @@
+{% extends 'layout.html' %}
+{% block body %}
+<div class="container d-flex justify-content-center align-items-center mt-5">
+    <div class="card glass-effect p-4">
+        <h2 class="text-center mb-4">Verificación 2FA</h2>
+        <form action="{{ url_for('verificar_2fa') }}" method="POST">
+            <input type="hidden" name="gmail" value="{{ gmail }}">
+            <div class="mb-3">
+                <input type="text" name="codigo" class="form-control" placeholder="Código 2FA" required>
+            </div>
+            <button type="submit" class="btn btn-success w-100">Verificar</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

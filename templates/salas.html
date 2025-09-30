@@ -1,0 +1,58 @@
+{% extends 'layout.html' %}
+{% block head %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+{% endblock %}
+{% block body %}
+<table id="tabla-salas" class="table table-hover">
+  <thead>
+    <tr>
+      <th>Quirófano</th>
+      <th>Estado</th>
+  <th>Equipo Médico</th>
+  <th>Médico Encargado</th>
+  <th>Paciente</th>
+      <th>Hora de Inicio</th>
+      <th>Hora de Fin</th>
+      <th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% set nombres = ['f','g','h','i','j','a','b','c','d','E'] %}
+    {% for sala in salas %}
+    {% set idx = loop.index0 %}
+    {% set nombre = nombres[idx] if idx < nombres|length else 'Q' ~ sala[0] %}
+    {% set estado = sala[1]|lower %}
+    <tr class="
+      {% if estado == 'libre' %}table-success
+      {% elif estado == 'en uso' %}table-danger
+      {% elif estado == 'mantenimiento' %}table-warning
+      {% endif %}">
+      <td>{{ nombre|upper }}</td>
+      <td>{{ sala[1]|capitalize }}</td>
+  <td>{{ sala[4] or 'Sin equipo' }}</td>
+  <td>{{ sala[6] or 'Sin médico' }}</td>
+  <td>{{ sala[5] or 'Sin paciente' }}</td>
+  <td>{{ sala[2] or '--:--' }}</td>
+  <td>{{ sala[3] or '--:--' }}</td>
+      <td>
+        <a href="{{ url_for('editar_sala', id=sala[0]) }}" class="btn btn-warning btn-sm">Editar</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<script>
+$(function() {
+  $('#tabla-salas').DataTable({
+    "language": {
+      "url": "//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json"
+    }
+  });
+});
+</script>
+{% endblock %}

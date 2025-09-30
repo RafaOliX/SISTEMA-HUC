@@ -1,0 +1,32 @@
+{% extends 'layout.html' %}
+{% block body %}
+<div class="container d-flex justify-content-center align-items-center mt-5">
+    <div class="card glass-effect p-4" style="min-width:350px;max-width:600px;">
+        <h2 class="text-center mb-4">Agregar Paciente</h2>
+        <form method="POST">
+            <div class="mb-3">
+                <label for="nombre_completo" class="form-label">Nombre Completo</label>
+                <input type="text" class="form-control" id="nombre_completo" name="nombre_completo" required>
+            </div>
+            <div class="mb-3">
+                <label for="edad" class="form-label">Edad</label>
+                <input type="number" class="form-control" id="edad" name="edad" min="0" max="120" required>
+            </div>
+            <div class="mb-3">
+                <label for="fecha_nacimiento" class="form-label">Fecha de Nacimiento</label>
+                <input type="date" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento" required>
+            </div>
+            <div class="mb-3">
+                <label for="tipo_sangre" class="form-label">Tipo de Sangre</label>
+                <input type="text" class="form-control" id="tipo_sangre" name="tipo_sangre" required>
+            </div>
+            <div class="mb-3">
+                <label for="motivo_cirugia" class="form-label">Motivo de Cirugía</label>
+                <textarea class="form-control" id="motivo_cirugia" name="motivo_cirugia" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-success w-100">Agregar Paciente</button>
+            <a href="{{ url_for('pacientes') }}" class="btn btn-secondary w-100 mt-2">Cancelar</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

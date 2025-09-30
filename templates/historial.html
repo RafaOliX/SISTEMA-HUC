@@ -1,0 +1,30 @@
+{% extends 'layout.html' %}
+{% block body %}
+<div class="container mt-4">
+  <h2 class="text-center mb-4">Historial de Uso de Quirófanos</h2>
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Quirófano</th>
+        <th>Médico</th>
+        <th>Fecha de Uso</th>
+        <th>Duración</th>
+        <th>Descripción</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in historial %}
+      <tr>
+        <td>{{ h.id }}</td>
+        <td>{{ h.quirofano }}</td>
+        <td>{{ h.medico }}</td>
+        <td>{{ h.fecha_uso }}</td>
+        <td>{{ h.duracion }}</td>
+        <td>{{ h.descripcion }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

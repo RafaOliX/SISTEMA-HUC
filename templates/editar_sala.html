@@ -1,0 +1,39 @@
+{% extends 'layout.html' %}
+{% block body %}
+<div class="container d-flex justify-content-center align-items-center mt-5">
+    <div class="card glass-effect p-4" style="min-width:350px;max-width:500px;">
+        <h2 class="text-center mb-2">Editar Quirófano</h2>
+        <h4 class="text-center mb-1">Quirófano: {{ nombre_quirofano }}</h4>
+        <form method="POST">
+            <div class="mb-3">
+                <label for="equipo_id" class="form-label">Equipo Médico Disponible</label>
+                <select class="form-control" id="equipo_id" name="equipo_id" >
+                    <option value="">Seleccione un equipo</option>
+                    {% for equipo in equipos_disponibles %}
+                        <option value="{{ equipo[0] }}" {% if sala[4] == equipo[0] %}selected{% endif %}>{{ equipo[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="paciente_id" class="form-label">Paciente Disponible</label>
+                <select class="form-control" id="paciente_id" name="paciente_id" >
+                    <option value="">Seleccione un paciente</option>
+                    {% for paciente in pacientes_disponibles %}
+                        <option value="{{ paciente[0] }}" {% if sala[5] == paciente[0] %}selected{% endif %}>{{ paciente[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="hora_inicio" class="form-label">Hora de Inicio</label>
+                <input type="time" class="form-control" id="hora_inicio" name="hora_inicio" value="{{ sala[6] or '' }}" >
+            </div>
+            <div class="mb-3">
+                <label for="hora_fin" class="form-label">Hora de Fin</label>
+                <input type="time" class="form-control" id="hora_fin" name="hora_fin" value="{{ sala[7] or '' }}" >
+            </div>
+            <button type="submit" class="btn btn-success w-100">Guardar Cambios</button>
+            <a href="{{ url_for('salas') }}" class="btn btn-secondary w-100 mt-2">Cancelar</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

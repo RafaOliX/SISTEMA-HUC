@@ -1,0 +1,302 @@
+{% extends 'layout.html' %}
+{% block body %}
+<style>
+  .svg-container {
+    width: 100%;
+    max-width: 1100px;
+    margin: auto;
+    display: block;
+  }
+  @media (max-width: 700px) {
+    .svg-container {
+      max-width: 100vw;
+    }
+    svg {
+      width: 100vw !important;
+      height: auto !important;
+    }
+    text {
+      font-size: 16px !important;
+    }
+  }
+  </style>
+
+<div class="text-center mt-3">
+  <h5>Hora actual: <span id="hora-actual"></span></h5>
+</div>
+
+<h2 class="text-center mb-4">Mapa de Quirófanos</h2>
+<p class="text-center">Haz clic en un quirófano para ver detalles o editarlo.</p>
+
+<div class="d-flex justify-content-center">
+  <svg id="mapa-salas" class="svg-container" viewBox="0 0 1100 420" style="background:#fff; border-radius:20px; border:1px solid #222;">
+    {% set nombres = ['f','g','h','i','j','a','b','c','d','E'] %}
+    {# fila superior: f,g,h,i,j; fila inferior: a,b,c,d,E #}
+    {% set posiciones = [
+      [60,40], [260,40], [460,40], [660,40], [860,40],
+      [60,240], [260,240], [460,240], [660,240], [860,240]
+    ] %}
+    {% for sala in salas %}
+      {% set idx = loop.index0 %}
+      {% set nombre = nombres[idx] if idx < nombres|length else 'Q' ~ sala[0] %}
+      {% set pos = posiciones[idx] if idx < posiciones|length else [60,40] %}
+      {% set color =
+        '#4caf50' if sala[1] == 'libre' else
+        '#ffc107' if sala[1] == 'mantenimiento' else
+        '#f44336'
+      %}
+      <rect
+        class="sala-svg"
+        id="sala{{ sala[0] }}"
+        x="{{ pos[0] }}" y="{{ pos[1] }}"
+        width="180" height="140"
+        fill="{{ color }}"
+        stroke="#222" stroke-width="1"
+        style="cursor:pointer; transition:filter .2s;"
+        data-id="{{ sala[0] }}"
+        data-nombre="{{ nombre|upper }}"
+        data-estado="{{ sala[1] }}"
+        data-hora-inicio="{{ sala[6] or '' }}"
+        data-hora-fin="{{ sala[7] or '' }}"
+        data-equipo="{{ sala[8] or 'Sin equipo' }}"
+        data-paciente="{{ sala[9] or 'Sin paciente' }}"
+        onmouseover="this.style.filter='brightness(1.2) drop-shadow(0 0 8px #0d6efd55)'"
+        onmouseout="this.style.filter='none'"
+      />
+      <!-- Etiqueta de quirófano -->
+      <text x="{{ pos[0] + 90 }}" y="{{ pos[1] + 65 }}" text-anchor="middle" fill="#fff" font-size="32" font-weight="bold">
+        {{ nombre|upper }}
+      </text>
+      <text x="{{ pos[0] + 90 }}" y="{{ pos[1] + 105 }}" text-anchor="middle" fill="#fff" font-size="17">
+        ({{ sala[6] or '--:--' }} - {{ sala[7] or '--:--' }})
+      </text>
+      {% if nombre|lower == 'e' %}
+        <text x="{{ pos[0] + 90 }}" y="{{ pos[1] + 130 }}" text-anchor="middle" fill="#fff" font-size="15">EMERGENCIA</text>
+      {% endif %}
+    {% endfor %}
+  </svg>
+</div>
+
+<!-- Modal Bootstrap -->
+<div class="modal fade" id="modalSala" tabindex="-1" aria-labelledby="modalSalaLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content glass-effect">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalSalaLabel">Detalle de Quirófano</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p><strong>Nombre:</strong> <span id="modal-nombre"></span></p>
+        <p><strong>Estado:</strong> <span id="modal-estado"></span></p>
+        <p><strong>Horario:</strong> <span id="modal-horario"></span></p>
+        <p><strong>Equipo Médico:</strong> <span id="modal-equipo"></span></p>
+        <p><strong>Paciente:</strong> <span id="modal-paciente"></span></p>
+      </div>
+      <div class="modal-footer">
+        <a id="btn-editar" href="#" class="btn btn-warning">Editar Quirófano</a>
+        <button type="button" class="btn btn-primary" id="btn-modificar-hora" style="display:none;">Modificar Hora de Fin</button>
+        <button type="button" class="btn btn-success" id="btn-liberar" style="display:none;">Liberar Quirófano</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Volver</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-5">
+  <div class="col-md-6">
+    <h4 class="text-center">Pacientes Pendientes</h4>
+    <ul class="list-group">
+      {% for p in pacientes_pendientes %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        {{ p[1] }} ({{ p[2] }} - {{ p[3] }})
+        <div>
+          <a href="{{ url_for('cancelar_paciente', paciente_id=p[0]) }}" class="btn btn-danger btn-sm"
+             onclick="return confirm('¿Seguro que desea cancelar la operación?')">Cancelar</a>
+          <a href="{{ url_for('marcar_atendido', paciente_id=p[0]) }}" class="btn btn-success btn-sm"
+             onclick="return confirm('¿Confirmar que la operación se realizó?')">Realizar</a>
+        </div>
+      </li>
+      {% else %}
+      <li class="list-group-item text-center">No hay pacientes pendientes</li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="col-md-6">
+    <h4 class="text-center">Pacientes Atendidos</h4>
+    <ul class="list-group">
+      {% for p in pacientes_atendidos %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        {{ p[1] }} ({{ p[2] }} - {{ p[3] }})
+        <form method="POST" action="{{ url_for('validar_paciente', paciente_id=p[0]) }}" class="d-flex">
+          <select name="resultado_final" class="form-select form-select-sm me-2" required>
+            <option value="">Validar estado...</option>
+            <option>Operación Exitosa</option>
+            <option>Fallecido en Quirófano</option>
+            <option>Traslado a cuidados intensivos</option>
+            <option>Paciente estable no hospitalizado</option>
+            <option>Requiere intervención</option>
+            <option>Operación cancelada</option>
+            <option>Traslado a otro quirófano</option>
+          </select>
+          <button type="submit" class="btn btn-primary btn-sm">Validar</button>
+        </form>
+      </li>
+      {% else %}
+      <li class="list-group-item text-center">No hay pacientes atendidos</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.sala-svg').forEach(function(rect) {
+  rect.addEventListener('click', function() {
+    document.getElementById('modal-nombre').textContent = this.dataset.nombre;
+    document.getElementById('modal-estado').textContent = this.dataset.estado;
+    document.getElementById('modal-horario').textContent = (this.dataset.horaInicio || '--:--') + ' - ' + (this.dataset.horaFin || '--:--');
+    document.getElementById('modal-equipo').textContent = this.dataset.equipo;
+    document.getElementById('modal-paciente').textContent = this.dataset.paciente;
+    // Mostrar botón solo si está en uso
+    if (this.dataset.estado === 'en uso') {
+      document.getElementById('btn-modificar-hora').style.display = '';
+      document.getElementById('btn-modificar-hora').onclick = function() {
+        window.location.href = "/modificar_hora/" + rect.dataset.id;
+      };
+      document.getElementById('btn-liberar').style.display = '';
+      document.getElementById('btn-liberar').onclick = function() {
+        // Lógica para liberar quirófano (puedes hacer un fetch a una ruta que maneje esto)
+        fetch('/liberar_quirófano/' + rect.dataset.id, { method: 'POST' })
+          .then(response => {
+            if (response.ok) {
+              // Actualiza el estado en el modal y cierra el modal
+              document.getElementById('modal-estado').textContent = 'libre';
+              var modal = bootstrap.Modal.getInstance(document.getElementById('modalSala'));
+              modal.hide();
+              mostrarAviso('¡Quirófano liberado!');
+              actualizarDashboard(); // Actualiza el dashboard para reflejar cambios
+            } else {
+              alert('Error al liberar el quirófano. Intente nuevamente.');
+            }
+          });
+      };
+    } else if (this.dataset.estado === 'libre' || this.dataset.estado === 'mantenimiento') {
+      document.getElementById('btn-editar').style.display = '';
+      document.getElementById('btn-editar').href = "/editar_sala/" + this.dataset.id;
+      document.getElementById('btn-liberar').style.display = 'none';
+      document.getElementById('btn-modificar-hora').style.display = 'none';
+    } else if (this.dataset.estado === 'en uso') {
+      document.getElementById('btn-modificar-hora').style.display = '';
+      document.getElementById('btn-modificar-hora').onclick = function() {
+        window.location.href = "/modificar_hora/" + rect.dataset.id;
+      };
+      document.getElementById('btn-liberar').style.display = 'none';
+      document.getElementById('btn-editar').style.display = 'none';
+    }
+    if (this.dataset.estado === 'mantenimiento') {
+      document.getElementById('btn-liberar').style.display = '';
+      document.getElementById('btn-liberar').onclick = function() {
+        window.location.href = "/liberar_quirofano/" + rect.dataset.id;
+      };
+      document.getElementById('btn-editar').style.display = 'none';
+      document.getElementById('btn-modificar-hora').style.display = 'none';
+    } else if (this.dataset.estado === 'libre') {
+      document.getElementById('btn-editar').style.display = '';
+      document.getElementById('btn-editar').href = "/editar_sala/" + this.dataset.id;
+      document.getElementById('btn-liberar').style.display = 'none';
+      document.getElementById('btn-modificar-hora').style.display = 'none';
+    } else if (this.dataset.estado === 'en uso') {
+      document.getElementById('btn-modificar-hora').style.display = '';
+      document.getElementById('btn-modificar-hora').onclick = function() {
+        window.location.href = "/modificar_hora/" + rect.dataset.id;
+      };
+      document.getElementById('btn-liberar').style.display = 'none';
+      document.getElementById('btn-editar').style.display = 'none';
+    }
+    var modal = new bootstrap.Modal(document.getElementById('modalSala'));
+    modal.show();
+  });
+});
+
+function actualizarHora() {
+  const ahora = new Date();
+  document.getElementById('hora-actual').textContent =
+    ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+setInterval(actualizarHora, 1000);
+actualizarHora();
+
+// Ejemplo de aviso emergente (puedes usar SweetAlert2 para mejor UX)
+function mostrarAviso(msg) {
+  alert(msg); // Reemplaza por Swal.fire(msg) si usas SweetAlert2
+}
+
+// Puedes llamar mostrarAviso('¡Operación finalizada!') desde el backend con un flash especial o desde el frontend según lógica.
+
+function actualizarDashboard() {
+  fetch('/dashboard_data')
+    .then(res => res.json())
+    .then(data => {
+      // Actualiza pacientes pendientes
+      let pendientesHtml = '';
+      if (data.pendientes.length === 0) {
+        pendientesHtml = '<li class="list-group-item text-center">No hay pacientes pendientes</li>';
+      } else {
+        data.pendientes.forEach(p => {
+          pendientesHtml += `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              ${p[1]} (${p[2]} - ${p[3]})
+              <div>
+                <a href="/cancelar_paciente/${p[0]}" class="btn btn-danger btn-sm"
+                   onclick="return confirm('¿Seguro que desea cancelar la operación?')">Cancelar</a>
+                <a href="/marcar_atendido/${p[0]}" class="btn btn-success btn-sm"
+                   onclick="return confirm('¿Confirmar que la operación se realizó?')">Realizar</a>
+              </div>
+            </li>`;
+        });
+      }
+      document.querySelector('.col-md-6 ul.list-group').innerHTML = pendientesHtml;
+
+      // Actualiza pacientes atendidos
+      let atendidosHtml = '';
+      if (data.atendidos.length === 0) {
+        atendidosHtml = '<li class="list-group-item text-center">No hay pacientes atendidos</li>';
+      } else {
+        data.atendidos.forEach(p => {
+          atendidosHtml += `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              ${p[1]} (${p[2]} - ${p[3]})
+              <form method="POST" action="/validar_paciente/${p[0]}" class="d-flex">
+                <select name="resultado_final" class="form-select form-select-sm me-2" required>
+                  <option value="">Validar estado...</option>
+                  <option>Operación Exitosa</option>
+                  <option>Fallecido en Quirófano</option>
+                  <option>Traslado a cuidados intensivos</option>
+                  <option>Paciente estable no hospitalizado</option>
+                  <option>Requiere intervención</option>
+                  <option>Operación cancelada</option>
+                  <option>Traslado a otro quirófano</option>
+                </select>
+                <button type="submit" class="btn btn-primary btn-sm">Validar</button>
+              </form>
+            </li>`;
+        });
+      }
+      document.querySelectorAll('.col-md-6 ul.list-group')[1].innerHTML = atendidosHtml;
+
+      // Actualiza colores de quirófanos
+      data.salas.forEach(sala => {
+        const rect = document.getElementById('sala' + sala[0]);
+        if (rect) {
+          let color = '#4caf50';
+          if (sala[1] === 'mantenimiento') color = '#ffc107';
+          else if (sala[1] !== 'libre') color = '#f44336';
+          rect.setAttribute('fill', color);
+        }
+      });
+    });
+}
+
+// Llama cada 30 segundos
+setInterval(actualizarDashboard, 10000);
+</script>
+{% endblock %}

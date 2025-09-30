@@ -1,0 +1,10 @@
+{% extends 'layout.html' %}
+{% block body %}
+<div class="container d-flex justify-content-center align-items-center mt-5">
+    <div class="card glass-effect p-4 text-center">
+        <h2 class="mb-4">Escanea este QR en Google Authenticator</h2>
+        <img src="{{ url_for('static', filename='qr/' + gmail + '_qr.png') }}" alt="QR 2FA" class="mb-3" style="width: 200px;">
+        <a href="{{ url_for('index') }}" class="btn btn-success w-100">Ir al Login</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Editar Equipo Médico: {{ equipo[2] }}</h2>
+    <form method="POST">
+        <div class="mb-3">
+            <label for="medico_id" class="form-label">Médico Encargado</label>
+            <select class="form-select" id="medico_id" name="medico_id" required>
+                {% for med in medicos %}
+                    <option value="{{ med[0] }}" {% if med[0] == equipo[1] %}selected{% endif %}>{{ med[1] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Enfermeros Asignados</label>
+            <div class="row">
+                {% for enf in enfermeros %}
+                <div class="col-md-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="enfermeros_ids" id="enf{{ enf[0] }}" value="{{ enf[0] }}" {% if enf[0] in enfermeros_asignados %}checked{% endif %}>
+                        <label class="form-check-label" for="enf{{ enf[0] }}">
+                            {{ enf[1] }} ({{ enf[2] }})
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+        <a href="{{ url_for('medico') }}#equipos" class="btn btn-secondary">Cancelar</a>
+    </form>
+</div>
+{% endblock %}

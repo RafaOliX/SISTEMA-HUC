@@ -1,0 +1,31 @@
+{% extends 'layout.html' %}
+{% block body %}
+<div class="container mt-4">
+  <h2 class="text-center mb-4">Pacientes</h2>
+  <a href="{{ url_for('add_paciente') }}" class="btn btn-success mb-3">Agregar Paciente</a>
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Edad</th>
+        <th>Fecha de Nacimiento</th>
+        <th>Tipo de Sangre</th>
+        <th>Motivo de Cirugía</th>
+        <th>Equipo Médico</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for paciente in pacientes %}
+      <tr>
+        <td>{{ paciente[1] }}</td>
+        <td>{{ paciente[2] }}</td>
+        <td>{{ paciente[3] }}</td>
+        <td>{{ paciente[4] }}</td>
+        <td>{{ paciente[5] }}</td>
+        <td>{{ paciente[6] or 'Sin equipo' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
