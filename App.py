@@ -47,12 +47,13 @@ def verificar_2fa():
     if resultado:
         secreto = resultado[0]
         totp = pyotp.TOTP(secreto)
-        if totp.verify(codigo):
+        # Agregar ventana de validación para códigos cercanos
+        if totp.verify(codigo, valid_window=1):
             session['usuario_autenticado'] = nombre_usuario
             flash('Bienvenido, autenticación exitosa')
             return redirect(url_for('dashboard'))
         else:
-            flash('Código 2FA incorrecto')
+            flash('Código 2FA incorrecto o expirado')
             return render_template('login.html', gmail=nombre_usuario)
     else:
         flash('Usuario no encontrado')
@@ -212,7 +213,7 @@ def medico():
     cur = mysql.connection.cursor()
     # Traer médicos junto con el nombre del equipo médico (si tiene)
     cur.execute("""
-        SELECT m.id, m.nombre, m.especialidad, m.correo, m.telefono, m.cedula, em.nombre_equipo
+        SELECT m.id, m.nombre, m.cedula, m.especialidad, m.correo, m.telefono, em.nombre_equipo
         FROM medicos m
         LEFT JOIN equipos_medicos em ON m.id = em.medico_id
     """)
@@ -254,14 +255,14 @@ def add_medico():
         flash('Acceso solo para administradores.')
         return redirect(url_for('dashboard'))
     nombre = request.form.get('nombre')
+    cedula = request.form.get('cedula')
     especialidad = request.form.get('especialidad')
     correo = request.form.get('correo')
     telefono = request.form.get('telefono')
-    cedula = request.form.get('cedula')
     cur = mysql.connection.cursor()
     cur.execute(
-        "INSERT INTO medicos (nombre, especialidad, correo, telefono, cedula) VALUES (%s, %s, %s, %s, %s)",
-        (nombre, especialidad, correo, telefono, cedula)
+        "INSERT INTO medicos (nombre, cedula, especialidad, correo, telefono) VALUES (%s, %s, %s, %s, %s)",
+        (nombre, cedula, especialidad, correo, telefono)
     )
     mysql.connection.commit()
     flash('Médico agregado correctamente')
@@ -351,7 +352,7 @@ def pacientes():
         return redirect(url_for('index'))
     cur = mysql.connection.cursor()
     cur.execute("""
-        SELECT p.id, p.nombre_completo, p.edad, p.fecha_nacimiento, p.tipo_sangre, p.motivo_cirugia, 
+        SELECT p.id, p.nombre_completo, p.cedula, p.edad, p.fecha_nacimiento, p.tipo_sangre, p.motivo_cirugia, 
                e.nombre_equipo
         FROM pacientes p
         LEFT JOIN equipos_medicos e ON p.equipo_id = e.id
@@ -367,14 +368,15 @@ def add_paciente():
         return redirect(url_for('index'))
     if request.method == 'POST':
         nombre_completo = request.form['nombre_completo']
+        cedula = request.form['cedula']
         edad = request.form['edad']
         fecha_nacimiento = request.form['fecha_nacimiento']
         tipo_sangre = request.form['tipo_sangre']
         motivo_cirugia = request.form['motivo_cirugia']
         cur = mysql.connection.cursor()
         cur.execute(
-            "INSERT INTO pacientes (nombre_completo, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia) VALUES (%s, %s, %s, %s, %s)",
-            (nombre_completo, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia)
+            "INSERT INTO pacientes (nombre_completo, cedula, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia) VALUES (%s, %s, %s, %s, %s, %s)",
+            (nombre_completo, cedula, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia)
         )
         mysql.connection.commit()
         flash('Paciente agregado correctamente')
@@ -493,7 +495,10 @@ def validar_paciente(paciente_id):
             t2 = parse_hora(hora_fin)
             duracion = str(t2 - t1)
         except Exception:
-            duracion = ""
+            duracion = "00:00:00"  # Valor predeterminado si falla el cálculo
+    else:
+        duracion = "00:00:00"  # Valor predeterminado si no hay horas
+
     # Registrar en historial
     cur.execute("""
         INSERT INTO historial_uso (sala_id, medico_id, fecha_uso, duracion, descripcion)
@@ -534,9 +539,16 @@ def dashboard_data():
     # Estados de quirófanos
     cur.execute("SELECT id, estado FROM salas_quirofano")
     salas = cur.fetchall()
+
+    # Convertir timedelta a string si es necesario
+    def serialize_timedelta(obj):
+        if isinstance(obj, datetime.timedelta):
+            return str(obj)
+        return obj
+
     return jsonify({
-        'pendientes': pendientes,
-        'atendidos': atendidos,
+        'pendientes': [[serialize_timedelta(item) for item in row] for row in pendientes],
+        'atendidos': [[serialize_timedelta(item) for item in row] for row in atendidos],
         'salas': salas
     })
 

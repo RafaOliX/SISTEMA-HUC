@@ -32,6 +32,12 @@
             <div class="col-md-4 mb-2">
               <input type="text" class="form-control" name="telefono" placeholder="Teléfono" required>
             </div>
+            <div class="col-md-4 mb-2">
+              <input type="text" class="form-control" name="cedula" placeholder="Cédula" required>
+            </div>
+            <div class="col-md-4 mb-2">
+              <input type="email" class="form-control" name="correo" placeholder="Correo" required>
+            </div>
             <div class="col-md-12 mb-2">
               <button type="submit" class="btn btn-success w-100">Agregar Médico</button>
             </div>
@@ -42,10 +48,10 @@
         <thead>
           <tr>
             <th>Nombre</th>
+            <th>Cédula</th>
             <th>Especialidad</th>
             <th>Correo</th>
             <th>Teléfono</th>
-            <th>Cédula</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -71,10 +77,10 @@
         <h5>Agregar Enfermero</h5>
         <form method="POST" action="{{ url_for('add_enfermero') }}">
           <div class="row">
-            <div class="col-md-6 mb-2">
+            <div class="col-md-4 mb-2">
               <input type="text" class="form-control" name="nombre" placeholder="Nombre" required>
             </div>
-            <div class="col-md-6 mb-2">
+            <div class="col-md-4 mb-2">
               <select class="form-control" name="tipo" required>
                 <option value="">Tipo de Enfermero</option>
                 <option value="anestesiólogo">Adjunto</option>
@@ -87,6 +93,15 @@
                 <option value="enfermero asistente de anestesia">Enfermero Asistente de Anestesia</option>
               </select>
             </div>
+            <div class="col-md-4 mb-2">
+              <input type="text" class="form-control" name="cedula" placeholder="Cédula" required>
+            </div>
+            <div class="col-md-4 mb-2">
+              <input type="email" class="form-control" name="correo" placeholder="Correo" required>
+            </div>
+            <div class="col-md-4 mb-2">
+              <input type="text" class="form-control" name="telefono" placeholder="Teléfono" required>
+            </div>
             <div class="col-md-12 mb-2">
               <button type="submit" class="btn btn-success w-100">Agregar Enfermero</button>
             </div>
@@ -97,6 +112,9 @@
         <thead>
           <tr>
             <th>Nombre</th>
+            <th>Cédula</th>
+            <th>Correo</th>
+            <th>Teléfono</th>
             <th>Tipo</th>
             <th>Acciones</th>
           </tr>
@@ -105,13 +123,12 @@
           {% for enfermero in enfermeros %}
           <tr>
             <td>{{ enfermero[1] }}</td>
+            <td>{{ enfermero[4] }}</td>
+            <td>{{ enfermero[5] }}</td>
+            <td>{{ enfermero[6] }}</td>
             <td>{{ enfermero[2] }}</td>
             <td>
-              <a href="{{ url_for('delete_enfermero', id=enfermero[0]) }}"
-                 class="btn btn-danger btn-sm"
-                 onclick="return confirm('¿Estás seguro de eliminar este enfermero?{% if enfermero[3] %} Este enfermero está en el equipo médico: {{ enfermero[3] }}.{% endif %}');">
-                 Eliminar
-              </a>
+              <a href="{{ url_for('delete_enfermero', id=enfermero[0]) }}" class="btn btn-danger btn-sm" onclick="return confirm('¿Estás seguro de eliminar este enfermero?{% if enfermero[3] %} Este enfermero está en el equipo médico: {{ enfermero[3] }}.{% endif %}');">Eliminar</a>
             </td>
           </tr>
           {% endfor %}

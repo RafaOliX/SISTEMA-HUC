@@ -12,6 +12,7 @@
         <th>Tipo de Sangre</th>
         <th>Motivo de Cirugía</th>
         <th>Equipo Médico</th>
+        <th>Cédula</th>
       </tr>
     </thead>
     <tbody>
@@ -23,6 +24,7 @@
         <td>{{ paciente[4] }}</td>
         <td>{{ paciente[5] }}</td>
         <td>{{ paciente[6] or 'Sin equipo' }}</td>
+        <td>{{ paciente[2] }}</td>
       </tr>
       {% endfor %}
     </tbody>
