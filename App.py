@@ -350,15 +350,52 @@ def pacientes():
     if 'usuario_autenticado' not in session:
         flash('Debes iniciar sesión primero')
         return redirect(url_for('index'))
+
+    page = request.args.get('page', default=1, type=int)
+    per_page = 10
+    nombre = request.args.get('nombre', '').strip()
+    cedula = request.args.get('cedula', '').strip()
+
     cur = mysql.connection.cursor()
-    cur.execute("""
-        SELECT p.id, p.nombre_completo, p.cedula, p.edad, p.fecha_nacimiento, p.tipo_sangre, p.motivo_cirugia, 
-               e.nombre_equipo
+
+    # Construir consulta dinámica
+    base_query = """
+        SELECT p.id, p.nombre_completo, p.edad, p.fecha_nacimiento, p.tipo_sangre, p.motivo_cirugia, 
+               e.nombre_equipo, p.cedula, p.telefono
         FROM pacientes p
         LEFT JOIN equipos_medicos e ON p.equipo_id = e.id
-    """)
-    pacientes = cur.fetchall()
-    return render_template('pacientes.html', pacientes=pacientes)
+    """
+    filters = []
+    params = []
+
+    if nombre:
+        filters.append("p.nombre_completo LIKE %s")
+        params.append(f"%{nombre}%")
+    if cedula:
+        filters.append("p.cedula LIKE %s")
+        params.append(f"%{cedula}%")
+
+    if filters:
+        base_query += " WHERE " + " AND ".join(filters)
+
+    cur.execute(base_query, params)
+    all_pacientes = cur.fetchall()
+
+    total_pacientes = len(all_pacientes)
+    total_pages = (total_pacientes + per_page - 1) // per_page
+    start = (page - 1) * per_page
+    end = start + per_page
+    pacientes_paginados = all_pacientes[start:end]
+
+    return render_template(
+        'pacientes.html',
+        pacientes=pacientes_paginados,
+        page=page,
+        total_pages=total_pages,
+        nombre=nombre,
+        cedula=cedula
+    )
+
 
 # Agregar paciente
 @app.route('/add_paciente', methods=['GET', 'POST'])
@@ -366,24 +403,104 @@ def add_paciente():
     if 'usuario_autenticado' not in session:
         flash('Debes iniciar sesión primero')
         return redirect(url_for('index'))
+
+    page = request.args.get('page', default=1, type=int)
+    per_page = 10
+    query = request.args.get('query', default='', type=str)
+
+    cur = mysql.connection.cursor()
+
+    if query:
+        cur.execute("""
+            SELECT p.id, p.nombre_completo, p.edad, p.fecha_nacimiento, p.tipo_sangre, p.motivo_cirugia, 
+                   e.nombre_equipo, p.cedula, p.telefono
+            FROM pacientes p
+            LEFT JOIN equipos_medicos e ON p.equipo_id = e.id
+            WHERE p.nombre_completo LIKE %s OR p.cedula LIKE %s
+        """, (f"%{query}%", f"%{query}%"))
+    else:
+        cur.execute("""
+            SELECT p.id, p.nombre_completo, p.edad, p.fecha_nacimiento, p.tipo_sangre, p.motivo_cirugia, 
+                   e.nombre_equipo, p.cedula, p.telefono
+            FROM pacientes p
+            LEFT JOIN equipos_medicos e ON p.equipo_id = e.id
+        """)
+
+    all_pacientes = cur.fetchall()
+    total_pacientes = len(all_pacientes)
+    total_pages = (total_pacientes + per_page - 1) // per_page
+    start = (page - 1) * per_page
+    end = start + per_page
+    pacientes_paginados = all_pacientes[start:end]
+
+    return render_template(
+        'pacientes.html',
+        pacientes=pacientes_paginados,
+        page=page,
+        total_pages=total_pages,
+        query=query  # opcional si quieres mantener el texto en el input
+    )
+
+
+
+# Editar paciente
+@app.route('/editar_paciente/<int:id>', methods=['GET', 'POST'])
+def editar_paciente(id):
+    if 'usuario_autenticado' not in session:
+        flash('Debes iniciar sesión primero')
+        return redirect(url_for('index'))
+    
+    cur = mysql.connection.cursor()
+    
     if request.method == 'POST':
+        # Obtener datos del formulario
         nombre_completo = request.form['nombre_completo']
         cedula = request.form['cedula']
+        telefono = request.form['telefono']
         edad = request.form['edad']
         fecha_nacimiento = request.form['fecha_nacimiento']
         tipo_sangre = request.form['tipo_sangre']
         motivo_cirugia = request.form['motivo_cirugia']
-        cur = mysql.connection.cursor()
-        cur.execute(
-            "INSERT INTO pacientes (nombre_completo, cedula, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia) VALUES (%s, %s, %s, %s, %s, %s)",
-            (nombre_completo, cedula, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia)
-        )
+        
+        # Actualizar el paciente en la base de datos
+        cur.execute("""
+            UPDATE pacientes
+            SET nombre_completo = %s, cedula = %s, telefono = %s, edad = %s, 
+                fecha_nacimiento = %s, tipo_sangre = %s, motivo_cirugia = %s
+            WHERE id = %s
+        """, (nombre_completo, cedula, telefono, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia, id))
         mysql.connection.commit()
-        flash('Paciente agregado correctamente')
+        flash('Paciente actualizado exitosamente')
         return redirect(url_for('pacientes'))
-    return render_template('add_paciente.html')
+    
+    # Obtener los datos actuales del paciente
+    cur.execute("SELECT * FROM pacientes WHERE id = %s", (id,))
+    paciente = cur.fetchone()
+    if not paciente:
+        flash('Paciente no encontrado')
+        return redirect(url_for('pacientes'))
+    
+    return render_template('editar_paciente.html', paciente=paciente)
 
 
+
+#Eliminar Paciente
+
+@app.route('/eliminar_paciente/<int:id>', methods=['POST'])
+def eliminar_paciente(id):
+    if 'usuario_autenticado' not in session:
+        flash('Debes iniciar sesión primero')
+        return redirect(url_for('index'))
+    
+    cur = mysql.connection.cursor()
+    try:
+        # Eliminar el paciente de la base de datos
+        cur.execute("DELETE FROM pacientes WHERE id = %s", (id,))
+        mysql.connection.commit()
+        flash('Paciente eliminado correctamente')
+    except Exception as e:
+        flash('Error al eliminar el paciente')
+    return redirect(url_for('pacientes'))
 
 # ------------------- HISTORIAL USO -------------------
 

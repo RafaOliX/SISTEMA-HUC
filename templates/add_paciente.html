@@ -9,6 +9,14 @@
                 <input type="text" class="form-control" id="nombre_completo" name="nombre_completo" required>
             </div>
             <div class="mb-3">
+                <label for="cedula" class="form-label">Cédula</label>
+                <input type="text" class="form-control" id="cedula" name="cedula" placeholder="Ej: V-12345678" required>
+            </div>
+            <div class="mb-3">
+                <label for="telefono" class="form-label">Teléfono</label>
+                <input type="tel" class="form-control" id="telefono" name="telefono" placeholder="Ej: 0414-1234567" required>
+            </div>
+            <div class="mb-3">
                 <label for="edad" class="form-label">Edad</label>
                 <input type="number" class="form-control" id="edad" name="edad" min="0" max="120" required>
             </div>
@@ -18,14 +26,26 @@
             </div>
             <div class="mb-3">
                 <label for="tipo_sangre" class="form-label">Tipo de Sangre</label>
-                <input type="text" class="form-control" id="tipo_sangre" name="tipo_sangre" required>
+                <select class="form-select" id="tipo_sangre" name="tipo_sangre" required>
+                    <option value="" disabled selected>Seleccione</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                </select>
             </div>
             <div class="mb-3">
                 <label for="motivo_cirugia" class="form-label">Motivo de Cirugía</label>
-                <textarea class="form-control" id="motivo_cirugia" name="motivo_cirugia" required></textarea>
+                <textarea class="form-control" id="motivo_cirugia" name="motivo_cirugia" rows="3" required></textarea>
             </div>
-            <button type="submit" class="btn btn-success w-100">Agregar Paciente</button>
-            <a href="{{ url_for('pacientes') }}" class="btn btn-secondary w-100 mt-2">Cancelar</a>
+            <div class="d-flex justify-content-between">
+                <button type="submit" class="btn btn-success">Agregar Paciente</button>
+                <a href="{{ url_for('pacientes') }}" class="btn btn-secondary">Cancelar</a>
+            </div>
         </form>
     </div>
 </div>
