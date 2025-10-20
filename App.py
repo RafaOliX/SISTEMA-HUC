@@ -160,27 +160,39 @@ def editar_sala(id):
     if 'usuario_autenticado' not in session:
         flash('Debes iniciar sesión primero')
         return redirect(url_for('index'))
+
     cur = mysql.connection.cursor()
+
     if request.method == 'POST':
         equipo_id = request.form['equipo_id']
         paciente_id = request.form['paciente_id']
         hora_inicio = request.form['hora_inicio']
         hora_fin = request.form['hora_fin']
-        # Actualiza la sala y la pone en 'libre'
-        cur.execute(
-            "UPDATE salas_quirofano SET equipo_id=%s, paciente_id=%s, hora_inicio=%s, hora_fin=%s, estado='libre' WHERE id=%s",
-            (equipo_id, paciente_id, hora_inicio, hora_fin, id)
-        )
-        # Si hay paciente asignado, ponlo en pendiente
-        if paciente_id:
-            cur.execute("UPDATE pacientes SET estado_atencion='pendiente' WHERE id=%s", (paciente_id,))
+
+        # Actualiza la sala
+        cur.execute("""
+            UPDATE salas_quirofano
+            SET equipo_id=%s, paciente_id=%s, hora_inicio=%s, hora_fin=%s, estado='libre'
+            WHERE id=%s
+        """, (equipo_id, paciente_id, hora_inicio, hora_fin, id))
+
+        # Actualiza el paciente con equipo y estado
+        if paciente_id and equipo_id:
+            cur.execute("""
+                UPDATE pacientes
+                SET estado_atencion='pendiente', equipo_id=%s
+                WHERE id=%s
+            """, (equipo_id, paciente_id))
+
         mysql.connection.commit()
         flash('Quirófano actualizado correctamente')
         return redirect(url_for('salas'))
+
     # Obtener quirófano actual
     cur.execute("SELECT * FROM salas_quirofano WHERE id=%s", (id,))
     sala = cur.fetchone()
-    # Obtener todas las salas para calcular el índice
+
+    # Calcular nombre del quirófano
     cur.execute("SELECT id FROM salas_quirofano ORDER BY id")
     todas_salas = [row[0] for row in cur.fetchall()]
     nombres = ['f','g','h','i','j','a','b','c','d','E']
@@ -189,19 +201,36 @@ def editar_sala(id):
         nombre_quirofano = nombres[idx].upper()
     except Exception:
         nombre_quirofano = f"Q{id}"
-    # Equipos médicos no asignados a ningún quirófano
+
+    # Equipos médicos disponibles
     cur.execute("""
-        SELECT id, nombre_equipo FROM equipos_medicos
+        SELECT id, nombre_equipo
+        FROM equipos_medicos
         WHERE id NOT IN (
             SELECT equipo_id FROM salas_quirofano
             WHERE equipo_id IS NOT NULL AND id != %s
         )
     """, (id,))
     equipos_disponibles = cur.fetchall()
-    # Pacientes no asignados a ningún quirófano
-    cur.execute("SELECT id, nombre_completo FROM pacientes WHERE id NOT IN (SELECT paciente_id FROM salas_quirofano WHERE paciente_id IS NOT NULL AND id != %s)", (id,))
+
+    # Pacientes disponibles (con cédula)
+    cur.execute("""
+        SELECT id, nombre_completo, cedula, edad, motivo_cirugia
+        FROM pacientes
+        WHERE id NOT IN (
+            SELECT paciente_id FROM salas_quirofano
+            WHERE paciente_id IS NOT NULL AND id != %s
+        )
+    """, (id,))
     pacientes_disponibles = cur.fetchall()
-    return render_template('editar_sala.html', sala=sala, equipos_disponibles=equipos_disponibles, pacientes_disponibles=pacientes_disponibles, nombre_quirofano=nombre_quirofano)
+
+    return render_template(
+        'editar_sala.html',
+        sala=sala,
+        equipos_disponibles=equipos_disponibles,
+        pacientes_disponibles=pacientes_disponibles,
+        nombre_quirofano=nombre_quirofano
+    )
 
 # ------------------- MEDICOS -------------------
 
@@ -220,12 +249,13 @@ def medico():
     medicos = cur.fetchall()
     # Traer enfermeros junto con el nombre del equipo médico (si tiene)
     cur.execute("""
-        SELECT e.id, e.nombre, e.tipo, em.nombre_equipo
-        FROM enfermeros e
-        LEFT JOIN equipo_enfermeros ee ON e.id = ee.enfermero_id
-        LEFT JOIN equipos_medicos em ON ee.equipo_id = em.id
-    """)
+    SELECT e.id, e.nombre, e.tipo, em.nombre_equipo, e.cedula, e.correo, e.telefono
+    FROM enfermeros e
+    LEFT JOIN equipo_enfermeros ee ON e.id = ee.enfermero_id
+    LEFT JOIN equipos_medicos em ON ee.equipo_id = em.id
+""")
     enfermeros = cur.fetchall()
+
     # Equipos médicos con nombres de médico y enfermeros
     cur.execute("SELECT * FROM equipos_medicos")
     equipos_raw = cur.fetchall()
@@ -251,22 +281,32 @@ def medico():
 # Agregar médico
 @app.route('/add_medico', methods=['POST'])
 def add_medico():
-    if session.get('rol') != 'administrador':
-        flash('Acceso solo para administradores.')
-        return redirect(url_for('dashboard'))
-    nombre = request.form.get('nombre')
-    cedula = request.form.get('cedula')
-    especialidad = request.form.get('especialidad')
-    correo = request.form.get('correo')
-    telefono = request.form.get('telefono')
-    cur = mysql.connection.cursor()
-    cur.execute(
-        "INSERT INTO medicos (nombre, cedula, especialidad, correo, telefono) VALUES (%s, %s, %s, %s, %s)",
-        (nombre, cedula, especialidad, correo, telefono)
-    )
+    nombre = request.form['nombre']
+    especialidad = request.form['especialidad']
+    correo = request.form['correo']
+
+    # Combinar prefijo y número de cédula
+    prefijo = request.form.get('prefijo_cedula')
+    numero = request.form.get('numero_cedula')
+    cedula = f"{prefijo}-{numero}" if prefijo and numero else None
+
+    # Combinar código y número de teléfono
+    codigo = request.form.get('codigo_pais')
+    telefono = request.form.get('numero_telefono')
+    telefono_completo = f"{codigo}-{telefono}" if codigo and telefono else None
+
+    if not cedula:
+        return "Error: Cédula incompleta", 400
+
+    # Inserta en la base de datos
+    cursor = mysql.connection.cursor()
+    cursor.execute("""
+        INSERT INTO medicos (nombre, especialidad, telefono, cedula, correo)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (nombre, especialidad, telefono_completo, cedula, correo))
     mysql.connection.commit()
-    flash('Médico agregado correctamente')
     return redirect(url_for('medico'))
+
 
 
 # Eliminar médico (desasigna de todos los equipos antes de eliminar)
@@ -284,22 +324,31 @@ def delete_medico(id):
     flash('Médico desasignado de todos los equipos y eliminado correctamente.')
     return redirect(url_for('medico'))
 
+
+
+# ----------------------Enfermeros----------------------
 # Agregar enfermero
 @app.route('/add_enfermero', methods=['POST'])
 def add_enfermero():
     if session.get('rol') != 'administrador':
         flash('Acceso solo para administradores.')
         return redirect(url_for('dashboard'))
+
     nombre = request.form.get('nombre')
     tipo = request.form.get('tipo')
+    cedula = request.form.get('prefijo_cedula') + '-' + request.form.get('numero_cedula')
+    telefono = request.form.get('codigo_pais') + ' ' + request.form.get('numero_telefono')
+    correo = request.form.get('correo')
+
     cur = mysql.connection.cursor()
-    cur.execute(
-        "INSERT INTO enfermeros (nombre, tipo) VALUES (%s, %s)",
-        (nombre, tipo)
-    )
+    cur.execute("""
+        INSERT INTO enfermeros (nombre, tipo, cedula, correo, telefono)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (nombre, tipo, cedula, correo, telefono))
     mysql.connection.commit()
     flash('Enfermero agregado correctamente')
     return redirect(url_for('medico') + '#enfermeros')
+
 
 
 # Eliminar enfermero (desasigna de todos los equipos antes de eliminar)
@@ -342,6 +391,54 @@ def add_equipo():
     return redirect(url_for('medico') + '#equipos')
 
 
+@app.route('/detalle_medico/<int:id>')
+def detalle_medico(id):
+    if session.get('rol') != 'administrador':
+        flash('Acceso solo para administradores.')
+        return redirect(url_for('dashboard'))
+
+    cur = mysql.connection.cursor()
+
+    # Datos del médico
+    cur.execute("""
+        SELECT m.id, m.nombre, m.cedula, m.especialidad, m.correo, m.telefono, m.fecha_ingreso,
+               em.nombre_equipo
+        FROM medicos m
+        LEFT JOIN equipos_medicos em ON m.id = em.medico_id
+        WHERE m.id = %s
+    """, (id,))
+    medico = cur.fetchone()
+    if not medico:
+        flash('Médico no encontrado.')
+        return redirect(url_for('medico'))
+
+    # Enfermeros del equipo
+    cur.execute("""
+        SELECT e.nombre, e.tipo
+        FROM equipo_enfermeros ee
+        JOIN enfermeros e ON ee.enfermero_id = e.id
+        WHERE ee.equipo_id = (
+            SELECT id FROM equipos_medicos WHERE medico_id = %s
+        )
+    """, (id,))
+    enfermeros = cur.fetchall()
+
+    # Pacientes asignados (si tienes esa relación)
+    cur.execute("""
+        SELECT nombre_completo, cedula, motivo_cirugia
+        FROM pacientes
+        WHERE equipo_id = (
+            SELECT id FROM equipos_medicos WHERE medico_id = %s
+        )
+    """, (id,))
+    pacientes = cur.fetchall()
+
+    return render_template('detalle_medico.html',
+                           medico=medico,
+                           enfermeros=enfermeros,
+                           pacientes=pacientes)
+
+
 
 # ------------------- PACIENTES -------------------
 
@@ -360,11 +457,12 @@ def pacientes():
 
     # Construir consulta dinámica
     base_query = """
-        SELECT p.id, p.nombre_completo, p.edad, p.fecha_nacimiento, p.tipo_sangre, p.motivo_cirugia, 
-               e.nombre_equipo, p.cedula, p.telefono
-        FROM pacientes p
-        LEFT JOIN equipos_medicos e ON p.equipo_id = e.id
-    """
+    SELECT p.id, p.nombre_completo, p.edad, p.fecha_nacimiento, p.tipo_sangre, p.motivo_cirugia, 
+           e.nombre_equipo, p.cedula, p.telefono, p.departamento
+    FROM pacientes p
+    LEFT JOIN equipos_medicos e ON p.equipo_id = e.id
+"""
+
     filters = []
     params = []
 
@@ -397,53 +495,42 @@ def pacientes():
     )
 
 
-# Agregar paciente
 @app.route('/add_paciente', methods=['GET', 'POST'])
 def add_paciente():
     if 'usuario_autenticado' not in session:
         flash('Debes iniciar sesión primero')
         return redirect(url_for('index'))
 
-    page = request.args.get('page', default=1, type=int)
-    per_page = 10
-    query = request.args.get('query', default='', type=str)
-
     cur = mysql.connection.cursor()
 
-    if query:
+    if request.method == 'POST':
+        nombre_completo = request.form['nombre_completo']
+        prefijo_cedula = request.form['prefijo_cedula']
+        numero_cedula = request.form['numero_cedula']
+        cedula = f"{prefijo_cedula}-{numero_cedula}"
+
+        codigo_pais = request.form['codigo_pais']
+        numero_telefono = request.form['numero_telefono']
+        telefono = f"{codigo_pais} {numero_telefono}"
+
+        edad = request.form['edad']
+        fecha_nacimiento = request.form['fecha_nacimiento']
+        tipo_sangre = request.form['tipo_sangre']
+        motivo_cirugia = request.form['motivo_cirugia']
+        departamento = request.form['departamento']
+
         cur.execute("""
-            SELECT p.id, p.nombre_completo, p.edad, p.fecha_nacimiento, p.tipo_sangre, p.motivo_cirugia, 
-                   e.nombre_equipo, p.cedula, p.telefono
-            FROM pacientes p
-            LEFT JOIN equipos_medicos e ON p.equipo_id = e.id
-            WHERE p.nombre_completo LIKE %s OR p.cedula LIKE %s
-        """, (f"%{query}%", f"%{query}%"))
-    else:
-        cur.execute("""
-            SELECT p.id, p.nombre_completo, p.edad, p.fecha_nacimiento, p.tipo_sangre, p.motivo_cirugia, 
-                   e.nombre_equipo, p.cedula, p.telefono
-            FROM pacientes p
-            LEFT JOIN equipos_medicos e ON p.equipo_id = e.id
-        """)
+            INSERT INTO pacientes (nombre_completo, cedula, telefono, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia, departamento)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (nombre_completo, cedula, telefono, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia, departamento))
+        mysql.connection.commit()
+        flash('Paciente agregado exitosamente')
+        return redirect(url_for('pacientes'))
 
-    all_pacientes = cur.fetchall()
-    total_pacientes = len(all_pacientes)
-    total_pages = (total_pacientes + per_page - 1) // per_page
-    start = (page - 1) * per_page
-    end = start + per_page
-    pacientes_paginados = all_pacientes[start:end]
-
-    return render_template(
-        'pacientes.html',
-        pacientes=pacientes_paginados,
-        page=page,
-        total_pages=total_pages,
-        query=query  # opcional si quieres mantener el texto en el input
-    )
+    return render_template('add_paciente.html')
 
 
 
-# Editar paciente
 @app.route('/editar_paciente/<int:id>', methods=['GET', 'POST'])
 def editar_paciente(id):
     if 'usuario_autenticado' not in session:
@@ -455,32 +542,57 @@ def editar_paciente(id):
     if request.method == 'POST':
         # Obtener datos del formulario
         nombre_completo = request.form['nombre_completo']
-        cedula = request.form['cedula']
-        telefono = request.form['telefono']
+        prefijo_cedula = request.form['prefijo_cedula']
+        numero_cedula = request.form['numero_cedula']
+        cedula = f"{prefijo_cedula}-{numero_cedula}"
+
+        codigo_pais = request.form['codigo_pais']
+        numero_telefono = request.form['numero_telefono']
+        telefono = f"{codigo_pais} {numero_telefono}"
+
         edad = request.form['edad']
         fecha_nacimiento = request.form['fecha_nacimiento']
         tipo_sangre = request.form['tipo_sangre']
         motivo_cirugia = request.form['motivo_cirugia']
-        
-        # Actualizar el paciente en la base de datos
+        departamento = request.form['departamento']
+
         cur.execute("""
             UPDATE pacientes
             SET nombre_completo = %s, cedula = %s, telefono = %s, edad = %s, 
-                fecha_nacimiento = %s, tipo_sangre = %s, motivo_cirugia = %s
+                fecha_nacimiento = %s, tipo_sangre = %s, motivo_cirugia = %s, departamento = %s
             WHERE id = %s
-        """, (nombre_completo, cedula, telefono, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia, id))
+        """, (nombre_completo, cedula, telefono, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia, departamento, id))
+
         mysql.connection.commit()
         flash('Paciente actualizado exitosamente')
         return redirect(url_for('pacientes'))
     
     # Obtener los datos actuales del paciente
-    cur.execute("SELECT * FROM pacientes WHERE id = %s", (id,))
+    cur.execute("""
+        SELECT id, nombre_completo, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia,
+               cedula, telefono, departamento
+        FROM pacientes
+        WHERE id = %s
+    """, (id,))
     paciente = cur.fetchone()
     if not paciente:
         flash('Paciente no encontrado')
         return redirect(url_for('pacientes'))
-    
-    return render_template('editar_paciente.html', paciente=paciente)
+
+    # ✅ Dividir cédula y teléfono para el formulario
+    cedula_completa = paciente[6]  # Ejemplo: "V-12345678"
+    prefijo_cedula, numero_cedula = cedula_completa.split('-')
+
+    telefono_completo = paciente[7]  # Ejemplo: "0414 1234567"
+    codigo_pais, numero_telefono = telefono_completo.split(' ', 1)
+
+    return render_template('editar_paciente.html',
+                           paciente=paciente,
+                           prefijo_cedula=prefijo_cedula,
+                           numero_cedula=numero_cedula,
+                           codigo_pais=codigo_pais,
+                           numero_telefono=numero_telefono)
+
 
 
 
@@ -506,36 +618,31 @@ def eliminar_paciente(id):
 
 @app.route('/historial')
 def historial():
+    if 'usuario_autenticado' not in session:
+        flash('Debes iniciar sesión primero')
+        return redirect(url_for('index'))
+
+    tipo = request.args.get('tipo', '')
+    fecha_inicio = request.args.get('inicio', '')
+    fecha_fin = request.args.get('fin', '')
+
     cur = mysql.connection.cursor()
-    cur.execute("""
-        SELECT h.id, h.sala_id, h.medico_id, h.fecha_uso, h.duracion, h.descripcion,
-               m.nombre
-        FROM historial_uso h
-        LEFT JOIN medicos m ON h.medico_id = m.id
-        ORDER BY h.fecha_uso DESC
-    """)
-    historial = cur.fetchall()
-    # Para mostrar el nombre del quirófano, usa el mismo arreglo de nombres
-    cur.execute("SELECT id FROM salas_quirofano ORDER BY id")
-    todas_salas = [row[0] for row in cur.fetchall()]
-    nombres = ['f','g','h','i','j','a','b','c','d','E']
-    historial_data = []
-    for h in historial:
-        sala_id = h[1]
-        try:
-            idx = todas_salas.index(sala_id)
-            nombre_quirofano = nombres[idx].upper()
-        except Exception:
-            nombre_quirofano = f"Q{sala_id}"
-        historial_data.append({
-            'id': h[0],
-            'quirofano': nombre_quirofano,
-            'medico': h[6] or 'Sin médico',
-            'fecha_uso': h[3],
-            'duracion': h[4],
-            'descripcion': h[5]
-        })
-    return render_template('historial.html', historial=historial_data)
+    query = "SELECT * FROM historial WHERE 1=1"
+    params = []
+
+    if tipo:
+        query += " AND tipo = %s"
+        params.append(tipo)
+    if fecha_inicio and fecha_fin:
+        query += " AND fecha BETWEEN %s AND %s"
+        params.extend([fecha_inicio, fecha_fin])
+
+    query += " ORDER BY fecha DESC"
+    cur.execute(query, params)
+    registros = cur.fetchall()
+
+    return render_template('historial.html', registros=registros, tipo=tipo)
+
 
 @app.route('/cancelar_paciente/<int:paciente_id>')
 def cancelar_paciente(paciente_id):

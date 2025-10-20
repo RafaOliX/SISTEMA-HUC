@@ -1,0 +1,106 @@
+{% extends 'layout.html' %}
+{% block body %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<div class="container d-flex justify-content-center align-items-center mt-5">
+  <div class="card glass-effect p-4" style="min-width:350px;max-width:600px;">
+    <h2 class="text-center mb-4">Editar Paciente</h2>
+    <form method="POST">
+      <div class="mb-3">
+        <label for="nombre_completo" class="form-label">Nombre Completo</label>
+        <input type="text" class="form-control" name="nombre_completo" value="{{ paciente[1] }}" required>
+      </div>
+
+        <!-- Cédula con prefijo -->
+        <div class="mb-3">
+    <label for="cedula" class="form-label">Cédula</label>
+    <div class="input-group">
+      <select class="form-select" name="prefijo_cedula" required>
+        <option value="V" {% if prefijo_cedula == 'V' %}selected{% endif %}>V</option>
+        <option value="E" {% if prefijo_cedula == 'E' %}selected{% endif %}>E</option>
+        <option value="P" {% if prefijo_cedula == 'P' %}selected{% endif %}>P</option>
+      </select>
+      <input type="text" class="form-control" name="numero_cedula" value="{{ numero_cedula }}" required>
+    </div>
+  </div>
+
+        <!-- Teléfono -->
+        <div class="mb-3">
+    <label for="telefono" class="form-label">Teléfono</label>
+    <div class="input-group">
+      <select class="form-select" name="codigo_pais" required>
+        <option value="0414" {% if codigo_pais == '0414' %}selected{% endif %}>0414</option>
+        <option value="0424" {% if codigo_pais == '0424' %}selected{% endif %}>0424</option>
+        <option value="0412" {% if codigo_pais == '0412' %}selected{% endif %}>0412</option>
+        <option value="0422" {% if codigo_pais == '0422' %}selected{% endif %}>0422</option>
+        <option value="0416" {% if codigo_pais == '0416' %}selected{% endif %}>0416</option>
+      </select>
+      <input type="tel" class="form-control" name="numero_telefono" value="{{ numero_telefono }}" required>
+    </div>
+  </div>
+
+      <div class="mb-3">
+        <label for="edad" class="form-label">Edad</label>
+        <input type="number" class="form-control" name="edad" value="{{ paciente[2] }}" required>
+      </div>
+
+      <input type="text" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento"
+       value="{{ paciente[3] }}" required>
+
+
+      <div class="mb-3">
+        <label for="tipo_sangre" class="form-label">Tipo de Sangre</label>
+        <select class="form-select" name="tipo_sangre" required>
+          <option value="" disabled>Seleccione</option>
+          {% for tipo in ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'] %}
+          <option value="{{ tipo }}" {% if paciente[4] == tipo %}selected{% endif %}>{{ tipo }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Departamento -->
+      <div class="mb-3">
+        <label for="departamento" class="form-label">Departamento</label>
+        <select class="form-select" name="departamento" required>
+          <option value="" disabled>Seleccione un departamento</option>
+          {% set departamentos = {
+  "Cardiología":"❤️", "Cirugía Bariátrica":"⚖️", "Cirugía Cardiovascular":"🫀", "Cirugía de Tórax":"🫁",
+  "Cirugía Digestiva":"🧪", "Cirugía Endocrina":"🧬", "Cirugía General":"🧑‍⚕️", "Cirugía Oncológica":"🧬",
+  "Cirugía Pediátrica":"👶", "Cirugía Plástica":"🎨", "Dermatología":"🧴", "Endocrinología":"🧬",
+  "Gastroenterología":"🧪", "Genética Médica":"🧬", "Ginecología":"👩‍⚕️", "Hematología":"🩸",
+  "Infectología":"🧫", "Medicina Estética":"💆", "Medicina Interna":"🩺", "Medicina Física y Rehabilitación":"🧑‍🦽",
+  "Neumología":"🫁", "Neurocirugía":"🧠", "Oftalmología":"👁️", "Oncología Médica":"🧬",
+  "Otorrinolaringología":"👂", "Pediatría":"🧒", "Traumatología y Ortopedia":"🦴", "Urología":"🚻"
+} %}
+
+          {% for nombre, emoji in departamentos.items() %}
+          <option value="{{ nombre }}" {% if paciente[8] == nombre %}selected{% endif %}>{{ emoji }} {{ nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label for="motivo_cirugia" class="form-label">Motivo de Cirugía</label>
+        <textarea class="form-control" name="motivo_cirugia" rows="3" required>{{ paciente[5] }}</textarea>
+      </div>
+
+      <div class="d-flex justify-content-between">
+        <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+        <a href="{{ url_for('pacientes') }}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<script>
+  flatpickr("#fecha_nacimiento", {
+    dateFormat: "Y-m-d",
+    maxDate: "today",
+    minDate: "1920-01-01",
+    defaultDate: "{{ paciente[3] }}"
+  });
+</script>
+
+{% endblock %}

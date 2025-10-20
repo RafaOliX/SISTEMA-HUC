@@ -1,5 +1,9 @@
 {% extends 'layout.html' %}
 {% block body %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+
 <div class="container d-flex justify-content-center align-items-center mt-5">
     <div class="card glass-effect p-4" style="min-width:350px;max-width:600px;">
         <h2 class="text-center mb-4">Agregar Paciente</h2>
@@ -8,21 +12,46 @@
                 <label for="nombre_completo" class="form-label">Nombre Completo</label>
                 <input type="text" class="form-control" id="nombre_completo" name="nombre_completo" required>
             </div>
-            <div class="mb-3">
-                <label for="cedula" class="form-label">Cédula</label>
-                <input type="text" class="form-control" id="cedula" name="cedula" placeholder="Ej: V-12345678" required>
-            </div>
-            <div class="mb-3">
-                <label for="telefono" class="form-label">Teléfono</label>
-                <input type="tel" class="form-control" id="telefono" name="telefono" placeholder="Ej: 0414-1234567" required>
-            </div>
+            <!-- Cédula con prefijo -->
+<div class="mb-3">
+  <label for="cedula" class="form-label">Cédula</label>
+  <div class="input-group">
+    <select class="form-select" name="prefijo_cedula" required>
+      <option value="V">V</option>
+      <option value="E">E</option>
+      <option value="P">P</option>
+    </select>
+    <input type="text" class="form-control" name="numero_cedula" placeholder="12345678" required>
+  </div>
+</div>
+
+<!-- Teléfono con código de país -->
+<div class="mb-3">
+  <label for="telefono" class="form-label">Teléfono</label>
+  <div class="input-group">
+    <select class="form-select" name="codigo_pais" required>
+      <option value="0414">0414</option>
+      <option value="0424">0424</option>
+      <option value="0412">0412</option>
+      <option value="0422">0422</option>
+      <option value="0416">0416</option>
+      <!-- Agrega más si lo necesitas -->
+    </select>
+    <input type="tel" class="form-control" name="numero_telefono" placeholder="1234567" required>
+  </div>
+</div>
+
+
+
             <div class="mb-3">
                 <label for="edad" class="form-label">Edad</label>
                 <input type="number" class="form-control" id="edad" name="edad" min="0" max="120" required>
             </div>
             <div class="mb-3">
                 <label for="fecha_nacimiento" class="form-label">Fecha de Nacimiento</label>
-                <input type="date" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento" required>
+                   <input type="text" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento" required>
+
+
             </div>
             <div class="mb-3">
                 <label for="tipo_sangre" class="form-label">Tipo de Sangre</label>
@@ -38,6 +67,42 @@
                     <option value="AB-">AB-</option>
                 </select>
             </div>
+            <!-- Departamento -->
+             <div class="mb-3">
+  <label for="departamento" class="form-label">Departamento</label>
+  <select class="form-select" id="departamento" name="departamento" required>
+    <option value="" disabled selected>Seleccione un departamento</option>
+    <option value="Cardiología">❤️ Cardiología</option>
+    <option value="Cirugía Bariátrica">⚖️ Cirugía Bariátrica</option>
+    <option value="Cirugía Cardiovascular">🫀 Cirugía Cardiovascular</option>
+    <option value="Cirugía de Tórax">🫁 Cirugía de Tórax</option>
+    <option value="Cirugía Digestiva">🧪 Cirugía Digestiva</option>
+    <option value="Cirugía Endocrina">🧬 Cirugía Endocrina</option>
+    <option value="Cirugía General">🧑‍⚕️ Cirugía General</option>
+    <option value="Cirugía Oncológica">🧬 Cirugía Oncológica</option>
+    <option value="Cirugía Pediátrica">👶 Cirugía Pediátrica</option>
+    <option value="Cirugía Plástica">🎨 Cirugía Plástica</option>
+    <option value="Dermatología">🧴 Dermatología</option>
+    <option value="Endocrinología">🧬 Endocrinología</option>
+    <option value="Gastroenterología">🧪 Gastroenterología</option>
+    <option value="Genética Médica">🧬 Genética Médica</option>
+    <option value="Ginecología">👩‍⚕️ Ginecología</option>
+    <option value="Hematología">🩸 Hematología</option>
+    <option value="Infectología">🧫 Infectología</option>
+    <option value="Medicina Estética">💆 Medicina Estética</option>
+    <option value="Medicina Interna">🩺 Medicina Interna</option>
+    <option value="Medicina Física y Rehabilitación">🧑‍🦽 Rehabilitación</option>
+    <option value="Neumología">🫁 Neumología</option>
+    <option value="Neurocirugía">🧠 Neurocirugía</option>
+    <option value="Oftalmología">👁️ Oftalmología</option>
+    <option value="Oncología Médica">🧬 Oncología Médica</option>
+    <option value="Otorrinolaringología">👂 Otorrinolaringología</option>
+    <option value="Pediatría">🧒 Pediatría</option>
+    <option value="Traumatología y Ortopedia">🦴 Traumatología y Ortopedia</option>
+    <option value="Urología">🚻 Urología</option>
+  </select>
+</div>
+
             <div class="mb-3">
                 <label for="motivo_cirugia" class="form-label">Motivo de Cirugía</label>
                 <textarea class="form-control" id="motivo_cirugia" name="motivo_cirugia" rows="3" required></textarea>
@@ -49,4 +114,14 @@
         </form>
     </div>
 </div>
+
+
+<script>
+  flatpickr("#fecha_nacimiento", {
+    dateFormat: "Y-m-d",
+    maxDate: "today",
+    minDate: "1920-01-01",
+    defaultDate: ""
+  });
+</script>
 {% endblock %}

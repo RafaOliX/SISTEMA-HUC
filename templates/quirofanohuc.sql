@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 09, 2025 at 04:17 PM
+-- Generation Time: Oct 20, 2025 at 01:19 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -30,17 +30,18 @@ SET time_zone = "+00:00";
 CREATE TABLE `enfermeros` (
   `id` bigint(20) NOT NULL,
   `nombre` varchar(255) NOT NULL,
-  `tipo` enum('anestesiólogo','instrumentista','circulante','asistente','jefe de enfermería') NOT NULL
+  `tipo` enum('anestesiólogo','instrumentista','circulante','asistente','jefe de enfermería') NOT NULL,
+  `cedula` varchar(20) NOT NULL,
+  `correo` varchar(100) NOT NULL,
+  `telefono` varchar(20) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `enfermeros`
 --
 
-INSERT INTO `enfermeros` (`id`, `nombre`, `tipo`) VALUES
-(1, 'negra', 'jefe de enfermería'),
-(2, 'panqueca', 'anestesiólogo'),
-(3, 'beto', 'instrumentista');
+INSERT INTO `enfermeros` (`id`, `nombre`, `tipo`, `cedula`, `correo`, `telefono`) VALUES
+(6, 'Andres Contreras', 'circulante', 'E-2123123', 'andres@gmail.com', '0414 4852324');
 
 -- --------------------------------------------------------
 
@@ -59,8 +60,7 @@ CREATE TABLE `equipos_medicos` (
 --
 
 INSERT INTO `equipos_medicos` (`id`, `medico_id`, `nombre_equipo`) VALUES
-(1, 1, 'ATILA EQUIPO'),
-(2, 2, 'Garfio equipo');
+(3, 5, 'ATILA EQUIPO');
 
 -- --------------------------------------------------------
 
@@ -73,14 +73,21 @@ CREATE TABLE `equipo_enfermeros` (
   `enfermero_id` bigint(20) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- --------------------------------------------------------
+
 --
--- Dumping data for table `equipo_enfermeros`
+-- Table structure for table `historial`
 --
 
-INSERT INTO `equipo_enfermeros` (`equipo_id`, `enfermero_id`) VALUES
-(1, 1),
-(1, 2),
-(2, 3);
+CREATE TABLE `historial` (
+  `id` bigint(20) NOT NULL,
+  `tipo` varchar(50) DEFAULT NULL,
+  `entidad_id` bigint(20) DEFAULT NULL,
+  `accion` varchar(100) DEFAULT NULL,
+  `descripcion` text DEFAULT NULL,
+  `usuario` varchar(100) DEFAULT NULL,
+  `fecha` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -102,22 +109,7 @@ CREATE TABLE `historial_uso` (
 --
 
 INSERT INTO `historial_uso` (`id`, `sala_id`, `medico_id`, `fecha_uso`, `duracion`, `descripcion`) VALUES
-(1, 11, NULL, '2025-06-22 18:04:30', '00:00:00', 'Modificación de sala por Garfio'),
-(2, 12, NULL, '2025-06-22 18:08:48', '00:00:00', 'Modificación de sala por Garfio'),
-(3, 11, NULL, '2025-06-22 18:12:50', '00:00:00', 'Modificación de sala por Garfio'),
-(4, 12, 1, '2025-07-26 18:30:08', '00:00:00', 'Fallecido en Quirófano'),
-(5, 11, 1, '2025-07-26 23:33:04', '00:00:00', 'Operación Exitosa'),
-(6, 11, 1, '2025-07-26 23:34:43', '00:00:00', 'Operación Exitosa'),
-(7, 6, 2, '2025-07-27 22:34:20', '00:00:00', 'Operación Exitosa'),
-(8, 6, 2, '2025-07-27 22:39:02', '00:00:00', 'Operación cancelada'),
-(9, 11, 1, '2025-07-27 22:49:58', '00:02:00', 'Operación cancelada'),
-(10, 11, 1, '2025-07-27 22:52:10', '00:01:00', 'Operación Exitosa'),
-(11, 12, 2, '2025-07-27 22:52:19', '02:00:00', 'Operación Exitosa'),
-(12, 11, 1, '2025-07-28 00:05:36', '00:04:00', 'Operación Exitosa'),
-(13, 11, 1, '2025-07-28 00:08:06', '00:00:00', 'Operación Exitosa'),
-(14, 6, 1, '2025-07-28 00:17:02', '01:00:00', 'Operación Exitosa'),
-(15, 11, 1, '2025-07-28 00:20:36', '00:01:00', 'Traslado a cuidados intensivos'),
-(16, 11, 1, '2025-08-09 13:57:40', '01:00:00', 'Operación Exitosa');
+(20, 6, 5, '2025-10-18 22:31:23', '03:01:00', 'Requiere intervención');
 
 -- --------------------------------------------------------
 
@@ -131,16 +123,16 @@ CREATE TABLE `medicos` (
   `especialidad` text NOT NULL,
   `correo` varchar(100) NOT NULL,
   `telefono` varchar(20) NOT NULL,
-  `cedula` varchar(20) NOT NULL
+  `cedula` varchar(20) NOT NULL,
+  `fecha_ingreso` date NOT NULL DEFAULT curdate()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `medicos`
 --
 
-INSERT INTO `medicos` (`id`, `nombre`, `especialidad`, `correo`, `telefono`, `cedula`) VALUES
-(1, 'ATILA', 'GATO', 'ATILA@GMAIL.COM', '0416', '01'),
-(2, 'Gzrfio', 'Oftalmo', 'garfio07@gmail.com', '0416', '4444');
+INSERT INTO `medicos` (`id`, `nombre`, `especialidad`, `correo`, `telefono`, `cedula`, `fecha_ingreso`) VALUES
+(5, 'panqueca', 'gastroenteria', 'panque123@gmail.com', '04241236789', '19123950', '2025-10-18');
 
 -- --------------------------------------------------------
 
@@ -151,22 +143,25 @@ INSERT INTO `medicos` (`id`, `nombre`, `especialidad`, `correo`, `telefono`, `ce
 CREATE TABLE `pacientes` (
   `id` bigint(20) NOT NULL,
   `nombre_completo` varchar(255) NOT NULL,
+  `cedula` varchar(20) NOT NULL,
+  `telefono` varchar(20) NOT NULL,
   `edad` int(3) NOT NULL,
   `fecha_nacimiento` date NOT NULL,
   `tipo_sangre` varchar(5) NOT NULL,
   `motivo_cirugia` text NOT NULL,
   `equipo_id` bigint(20) DEFAULT NULL,
   `estado_atencion` enum('pendiente','atendido','validado','cancelado') DEFAULT 'pendiente',
-  `resultado_final` varchar(100) DEFAULT NULL
+  `resultado_final` varchar(100) DEFAULT NULL,
+  `departamento` varchar(100) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `pacientes`
 --
 
-INSERT INTO `pacientes` (`id`, `nombre_completo`, `edad`, `fecha_nacimiento`, `tipo_sangre`, `motivo_cirugia`, `equipo_id`, `estado_atencion`, `resultado_final`) VALUES
-(1, 'Juan Pérez', 45, '1980-06-15', 'O+', 'Apendicitis aguda', NULL, 'validado', 'Traslado a cuidados intensivos'),
-(3, 'Rihabel Padilla', 22, '2003-06-20', 'O+', 'oftalmo', NULL, 'validado', 'Operación Exitosa');
+INSERT INTO `pacientes` (`id`, `nombre_completo`, `cedula`, `telefono`, `edad`, `fecha_nacimiento`, `tipo_sangre`, `motivo_cirugia`, `equipo_id`, `estado_atencion`, `resultado_final`, `departamento`) VALUES
+(35, 'Oscar Lozano', 'V-12567890', '0414 4206776', 60, '1920-03-23', 'A+', 'Rinoplastia', 3, 'validado', 'Requiere intervención', 'Cirugía Plástica'),
+(36, 'Oscar Lozano', 'V-4567890', '0414 4206776', 60, '1970-10-14', 'A+', 'Rinoplastia', NULL, 'pendiente', NULL, 'Cirugía Plástica');
 
 -- --------------------------------------------------------
 
@@ -249,6 +244,12 @@ ALTER TABLE `equipo_enfermeros`
   ADD KEY `enfermero_id` (`enfermero_id`);
 
 --
+-- Indexes for table `historial`
+--
+ALTER TABLE `historial`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `historial_uso`
 --
 ALTER TABLE `historial_uso`
@@ -290,31 +291,37 @@ ALTER TABLE `usuarios`
 -- AUTO_INCREMENT for table `enfermeros`
 --
 ALTER TABLE `enfermeros`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `equipos_medicos`
 --
 ALTER TABLE `equipos_medicos`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT for table `historial`
+--
+ALTER TABLE `historial`
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `historial_uso`
 --
 ALTER TABLE `historial_uso`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT for table `medicos`
 --
 ALTER TABLE `medicos`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `pacientes`
 --
 ALTER TABLE `pacientes`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 
 --
 -- AUTO_INCREMENT for table `salas_quirofano`

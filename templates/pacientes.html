@@ -1,17 +1,16 @@
 {% extends 'layout.html' %}
 {% block body %}
+
 <div class="container mt-4">
   <h2 class="text-center mb-4">Pacientes</h2>
   <div class="d-flex justify-content-between align-items-center mb-3">
-  <a href="{{ url_for('add_paciente') }}" class="btn btn-success">Agregar Paciente</a>
-  <form class="d-flex" method="GET" action="{{ url_for('pacientes') }}">
-    <input type="text" name="nombre" placeholder="Buscar por nombre" value="{{ nombre }}">
-<input type="text" name="cedula" placeholder="Buscar por cédula" value="{{ cedula }}">
-
-
-    <button class="btn btn-outline-primary" type="submit">Buscar</button>
-  </form>
-</div>
+    <a href="{{ url_for('add_paciente') }}" class="btn btn-success mb-3">Agregar Paciente</a>
+    <form class="d-flex" method="GET" action="{{ url_for('pacientes') }}">
+      <input type="text" name="nombre" placeholder="Buscar por nombre" value="{{ nombre }}">
+      <input type="text" name="cedula" placeholder="Buscar por cédula" value="{{ cedula }}">
+      <button class="btn btn-outline-primary" type="submit">Buscar</button>
+    </form>
+  </div>
 
   <table class="table table-hover">
     <thead>
@@ -24,19 +23,18 @@
         <th>Equipo Médico</th>
         <th>Cédula</th>
         <th>Acciones</th>
-
       </tr>
     </thead>
     <tbody>
       {% for paciente in pacientes %}
       <tr>
-        <td>{{ paciente[1] }}</td>
-        <td>{{ paciente[2] }}</td>
-        <td>{{ paciente[3] }}</td>
-        <td>{{ paciente[4] }}</td>
-        <td>{{ paciente[5] }}</td>
-        <td>{{ paciente[6] or 'Sin equipo' }}</td>
-        <td>{{ paciente[2] }}</td>
+        <td>{{ paciente[1] }}</td> <!-- nombre_completo -->
+        <td>{{ paciente[2] }}</td> <!-- edad -->
+        <td>{{ paciente[3] }}</td> <!-- fecha_nacimiento -->
+        <td>{{ paciente[4] }}</td> <!-- tipo_sangre -->
+        <td>{{ paciente[5] }}</td> <!-- motivo_cirugia -->
+        <td>{{ paciente[6] or 'No asignado' }}</td> <!-- nombre_equipo -->
+        <td>{{ paciente[7] }}</td> <!-- cedula -->
         <td>
           <a href="{{ url_for('editar_paciente', id=paciente[0]) }}" class="btn btn-sm btn-primary">Editar</a>
           <form action="{{ url_for('eliminar_paciente', id=paciente[0]) }}" method="POST" style="display:inline;">
@@ -48,6 +46,7 @@
         </td>
       </tr>
 
+      <!-- Modal de detalles -->
       <div class="modal fade" id="detallePaciente{{ paciente[0] }}" tabindex="-1" aria-labelledby="detallePacienteLabel" aria-hidden="true">
         <div class="modal-dialog">
           <div class="modal-content">
@@ -57,12 +56,18 @@
             </div>
             <div class="modal-body">
               <p><strong>Nombre:</strong> {{ paciente[1] }}</p>
-              <p><strong>Cédula:</strong> {{ paciente[6] }}</p>
+              <p><strong>Cédula:</strong> {{ paciente[7] }}</p>
               <p><strong>Teléfono:</strong> {{ paciente[8] }}</p>
               <p><strong>Edad:</strong> {{ paciente[2] }}</p>
               <p><strong>Tipo de Sangre:</strong> {{ paciente[4] }}</p>
               <p><strong>Motivo de Cirugía:</strong> {{ paciente[5] }}</p>
+              <p><strong>🧬 Equipo Médico:</strong> {{ paciente[6] or 'No asignado' }}</p>
+              <p><strong>Departamento:</strong> {{ paciente[9] }}</p>
             </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+
+
           </div>
         </div>
       </div>
@@ -70,6 +75,8 @@
     </tbody>
   </table>
 </div>
+
+<!-- Paginación -->
 <nav aria-label="Page navigation">
   <ul class="pagination justify-content-center">
     <li class="page-item {% if page == 1 %}disabled{% endif %}">
@@ -85,4 +92,7 @@
     </li>
   </ul>
 </nav>
+
+
+
 {% endblock %}

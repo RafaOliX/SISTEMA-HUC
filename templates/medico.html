@@ -4,198 +4,340 @@
   <h2 class="text-center mb-4">Gestión de Médicos, Enfermeros y Equipos Médicos</h2>
 
   {% if session.get('rol') == 'administrador' %}
-  <!-- Tabs -->
   <ul class="nav nav-tabs mb-3" id="gestionTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="medicos-tab" data-bs-toggle="tab" data-bs-target="#medicos" type="button" role="tab">Médicos</button>
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#medicos">Médicos</button></li>
+    <li class="nav-item">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#enfermeros">Enfermeros</button>
     </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="enfermeros-tab" data-bs-toggle="tab" data-bs-target="#enfermeros" type="button" role="tab">Enfermeros</button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="equipos-tab" data-bs-toggle="tab" data-bs-target="#equipos" type="button" role="tab">Equipos Médicos</button>
-    </li>
+    
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#equipos">Equipos Médicos</button></li>
   </ul>
-  <div class="tab-content" id="gestionTabsContent">
-    <!-- Médicos -->
-    <div class="tab-pane fade show active" id="medicos" role="tabpanel">
-      <div class="card glass-effect p-3 mb-3">
-        <h5>Agregar Médico</h5>
-        <form method="POST" action="{{ url_for('add_medico') }}">
-          <div class="row">
-            <div class="col-md-4 mb-2">
-              <input type="text" class="form-control" name="nombre" placeholder="Nombre" required>
-            </div>
-            <div class="col-md-4 mb-2">
-              <input type="text" class="form-control" name="especialidad" placeholder="Especialidad" required>
-            </div>
-            <div class="col-md-4 mb-2">
-              <input type="text" class="form-control" name="telefono" placeholder="Teléfono" required>
-            </div>
-            <div class="col-md-4 mb-2">
-              <input type="text" class="form-control" name="cedula" placeholder="Cédula" required>
-            </div>
-            <div class="col-md-4 mb-2">
-              <input type="email" class="form-control" name="correo" placeholder="Correo" required>
-            </div>
-            <div class="col-md-12 mb-2">
-              <button type="submit" class="btn btn-success w-100">Agregar Médico</button>
-            </div>
-          </div>
-        </form>
-      </div>
-      <table class="table table-hover">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Cédula</th>
-            <th>Especialidad</th>
-            <th>Correo</th>
-            <th>Teléfono</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for medico in medicos %}
-          <tr>
-            <td>{{ medico[1] }}</td>
-            <td>{{ medico[2] }}</td>
-            <td>{{ medico[3] }}</td>
-            <td>{{ medico[4] }}</td>
-            <td>{{ medico[5] }}</td>
-            <td>
-              <a href="{{ url_for('delete_medico', id=medico[0]) }}" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar médico?{% if medico[6] %} Este médico está en el equipo médico: {{ medico[6] }}.{% endif %}');">Eliminar</a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+
+  <div class="tab-content">
+<!-- 👨‍⚕️ Médicos -->
+<div class="tab-pane fade show active" id="medicos">
+  <div class="card p-3 mb-3">
+  <h5 class="mb-3">➕ Agregar Médico</h5>
+  <form method="POST" action="{{ url_for('add_medico') }}">
+  <div class="row">
+    <div class="col-md-4 mb-2">
+      <label class="form-label">🧑‍⚕️ Nombre</label>
+      <input type="text" class="form-control" name="nombre" required>
     </div>
-    <!-- Enfermeros -->
-    <div class="tab-pane fade" id="enfermeros" role="tabpanel">
-      <div class="card glass-effect p-3 mb-3">
-        <h5>Agregar Enfermero</h5>
-        <form method="POST" action="{{ url_for('add_enfermero') }}">
-          <div class="row">
-            <div class="col-md-4 mb-2">
-              <input type="text" class="form-control" name="nombre" placeholder="Nombre" required>
-            </div>
-            <div class="col-md-4 mb-2">
-              <select class="form-control" name="tipo" required>
-                <option value="">Tipo de Enfermero</option>
-                <option value="anestesiólogo">Adjunto</option>
-                <option value="instrumentista">Cirujano Principal</option>
-                <option value="circulante">Cirujano Ayudante</option>
-                <option value="asistente">Adjunto Anestesiologo</option>
-                <option value="recidente de anestesis">Recidente de Anestesis</option>
-                <option value="enfermera instrumentista">Enfermera Instrumentista</option>
-                <option value="enfermero circulante">Enfermero Circulante</option>
-                <option value="enfermero asistente de anestesia">Enfermero Asistente de Anestesia</option>
-              </select>
-            </div>
-            <div class="col-md-4 mb-2">
-              <input type="text" class="form-control" name="cedula" placeholder="Cédula" required>
-            </div>
-            <div class="col-md-4 mb-2">
-              <input type="email" class="form-control" name="correo" placeholder="Correo" required>
-            </div>
-            <div class="col-md-4 mb-2">
-              <input type="text" class="form-control" name="telefono" placeholder="Teléfono" required>
-            </div>
-            <div class="col-md-12 mb-2">
-              <button type="submit" class="btn btn-success w-100">Agregar Enfermero</button>
-            </div>
-          </div>
-        </form>
-      </div>
-      <table class="table table-hover">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Cédula</th>
-            <th>Correo</th>
-            <th>Teléfono</th>
-            <th>Tipo</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for enfermero in enfermeros %}
-          <tr>
-            <td>{{ enfermero[1] }}</td>
-            <td>{{ enfermero[4] }}</td>
-            <td>{{ enfermero[5] }}</td>
-            <td>{{ enfermero[6] }}</td>
-            <td>{{ enfermero[2] }}</td>
-            <td>
-              <a href="{{ url_for('delete_enfermero', id=enfermero[0]) }}" class="btn btn-danger btn-sm" onclick="return confirm('¿Estás seguro de eliminar este enfermero?{% if enfermero[3] %} Este enfermero está en el equipo médico: {{ enfermero[3] }}.{% endif %}');">Eliminar</a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+
+    <div class="col-md-4 mb-2">
+      <label class="form-label">🩺 Tipo</label>
+      <select class="form-control" name="tipo" required>
+        <option value="">Seleccionar tipo</option>
+        <option value="anestesiólogo">Adjunto</option>
+        <option value="instrumentista">Cirujano Principal</option>
+        <option value="circulante">Cirujano Ayudante</option>
+        <option value="asistente">Adjunto Anestesiólogo</option>
+        <option value="recidente de anestesis">Residente de Anestesia</option>
+        <option value="enfermera instrumentista">Enfermera Instrumentista</option>
+        <option value="enfermero circulante">Enfermero Circulante</option>
+        <option value="enfermero asistente de anestesia">Asistente de Anestesia</option>
+      </select>
     </div>
-    <!-- Equipos Médicos -->
-    <div class="tab-pane fade" id="equipos" role="tabpanel">
-      <div class="card glass-effect p-3 mb-3">
-        <h5>Crear Equipo Médico</h5>
-        <form method="POST" action="{{ url_for('add_equipo') }}">
-          <div class="row">
-            <div class="col-md-4 mb-2">
-              <input type="text" class="form-control" name="nombre_equipo" placeholder="Nombre del Equipo" required>
-            </div>
-            <div class="col-md-4 mb-2">
-              <select class="form-control" name="medico_id" required>
-                <option value="">Médico Encargado</option>
-                {% for medico in medicos %}
-                  <option value="{{ medico[0] }}">{{ medico[1] }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-md-4 mb-2">
-              <select class="form-control" name="enfermeros_ids" multiple required>
-                {% for enfermero in enfermeros %}
-                  <option value="{{ enfermero[0] }}">{{ enfermero[1] }} ({{ enfermero[2] }})</option>
-                {% endfor %}
-              </select>
-              <small class="text-muted">Ctrl+Click para seleccionar varios</small>
-            </div>
-            <div class="col-md-12 mb-2">
-              <button type="submit" class="btn btn-success w-100">Crear Equipo</button>
-            </div>
-          </div>
-        </form>
+
+    <div class="col-md-4 mb-2">
+      <label class="form-label">🆔 Cédula</label>
+      <div class="input-group">
+        <select class="form-select" name="prefijo_cedula" required>
+          <option value="V">V</option>
+          <option value="E">E</option>
+          <option value="P">P</option>
+        </select>
+        <input type="text" class="form-control" name="numero_cedula" required>
       </div>
-      <table class="table table-hover">
-        <thead>
-          <tr>
-            <th>Nombre del Equipo</th>
-            <th>Médico Encargado</th>
-            <th>Enfermeros</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for equipo in equipos %}
-          <tr>
-            <td>{{ equipo.nombre_equipo }}</td>
-            <td>{{ equipo.medico_nombre }}</td>
-            <td>
-              {% for enf in equipo.enfermeros %}
-                {{ enf.nombre }} ({{ enf.tipo }}){% if not loop.last %}, {% endif %}
-              {% endfor %}
-            </td>
-            <td>
-              <a href="{{ url_for('editar_equipo', equipo_id=equipo.id) }}" class="btn btn-warning btn-sm">Modificar</a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    </div>
+
+    <div class="col-md-4 mb-2">
+      <label class="form-label">📧 Correo</label>
+      <input type="email" class="form-control" name="correo" required>
+    </div>
+
+    <div class="col-md-4 mb-2">
+      <label class="form-label">📞 Teléfono</label>
+      <div class="input-group">
+        <select class="form-select" name="codigo_pais" required>
+          <option value="0414">0414</option>
+          <option value="0424">0424</option>
+          <option value="0412">0412</option>
+          <option value="0422">0422</option>
+          <option value="0416">0416</option>
+        </select>
+        <input type="tel" class="form-control" name="numero_telefono" required>
+      </div>
+    </div>
+
+    <div class="col-md-12 mb-2">
+      <button type="submit" class="btn btn-success w-100">✅ Registrar Enfermero</button>
     </div>
   </div>
-  {% else %}
-    <div class="alert alert-danger text-center">Acceso solo para administradores.</div>
-  {% endif %}
+</form>
+
 </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover table-striped align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>👨‍⚕️ Nombre</th>
+          <th>🆔 Cédula</th>
+          <th>🧠 Especialidad</th>
+          <th>📧 Correo</th>
+          <th>📞 Teléfono</th>
+          <th>⚙️ Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for medico in medicos %}
+        <tr>
+          <td>{{ medico[1] }}</td>
+          <td>{{ medico[2] }}</td>
+          <td>{{ medico[3] }}</td>
+          <td>{{ medico[4] }}</td>
+          <td>{{ medico[5] }}</td>
+          <td>
+            <button class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalMedico{{ medico[0] }}">🔍 Detalles</button>
+            <a href="{{ url_for('delete_medico', id=medico[0]) }}" class="btn btn-danger btn-sm"
+               onclick="return confirm('¿Eliminar médico?{% if medico[6] %} Está en el equipo: {{ medico[6] }}.{% endif %}');">🗑️ Eliminar</a>
+          </td>
+        </tr>
+
+        <!-- Modal de detalles del médico -->
+        <div class="modal fade" id="modalMedico{{ medico[0] }}" tabindex="-1" aria-labelledby="modalMedicoLabel{{ medico[0] }}" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="modalMedicoLabel{{ medico[0] }}">🔍 Detalles del Médico</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+              </div>
+              <div class="modal-body">
+                <p><strong>👨‍⚕️ Nombre:</strong> {{ medico[1] }}</p>
+                <p><strong>🆔 Cédula:</strong> {{ medico[2] }}</p>
+                <p><strong>🧠 Especialidad:</strong> {{ medico[3] }}</p>
+                <p><strong>📧 Correo:</strong> {{ medico[4] }}</p>
+                <p><strong>📞 Teléfono:</strong> {{ medico[5] }}</p>
+                <p><strong>🧬 Equipo Médico:</strong> {{ medico[6] or 'No asignado' }}</p>
+                {% if medico|length > 7 %}
+                  <p><strong>📅 Fecha de ingreso:</strong> {{ medico[7] }}</p>
+                {% endif %}
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+    <!-- 🧑‍⚕️ Enfermeros -->
+<div class="tab-pane fade" id="enfermeros">
+  <div class="card p-3 mb-3">
+    <h5 class="mb-3">➕ Agregar Enfermero</h5>
+    <form method="POST" action="{{ url_for('add_enfermero') }}">
+  <div class="row">
+    <div class="col-md-4 mb-2">
+      <label class="form-label">🧑‍⚕️ Nombre</label>
+      <input type="text" class="form-control" name="nombre" required>
+    </div>
+
+    <div class="col-md-4 mb-2">
+      <label class="form-label">🩺 Tipo</label>
+      <select class="form-control" name="tipo" required>
+        <option value="">Seleccionar tipo</option>
+        <option value="anestesiólogo">Adjunto</option>
+        <option value="instrumentista">Cirujano Principal</option>
+        <option value="circulante">Cirujano Ayudante</option>
+        <option value="asistente">Adjunto Anestesiólogo</option>
+        <option value="recidente de anestesis">Residente de Anestesia</option>
+        <option value="enfermera instrumentista">Enfermera Instrumentista</option>
+        <option value="enfermero circulante">Enfermero Circulante</option>
+        <option value="enfermero asistente de anestesia">Asistente de Anestesia</option>
+      </select>
+    </div>
+
+    <div class="col-md-4 mb-2">
+      <label class="form-label">🆔 Cédula</label>
+      <div class="input-group">
+        <select class="form-select" name="prefijo_cedula" required>
+          <option value="V">V</option>
+          <option value="E">E</option>
+          <option value="P">P</option>
+        </select>
+        <input type="text" class="form-control" name="numero_cedula" required>
+      </div>
+    </div>
+
+    <div class="col-md-4 mb-2">
+      <label class="form-label">📧 Correo</label>
+      <input type="email" class="form-control" name="correo" required>
+    </div>
+
+    <div class="col-md-4 mb-2">
+      <label class="form-label">📞 Teléfono</label>
+      <div class="input-group">
+        <select class="form-select" name="codigo_pais" required>
+          <option value="0414">0414</option>
+          <option value="0424">0424</option>
+          <option value="0412">0412</option>
+          <option value="0422">0422</option>
+          <option value="0416">0416</option>
+        </select>
+        <input type="tel" class="form-control" name="numero_telefono" required>
+      </div>
+    </div>
+
+    <div class="col-md-12 mb-2">
+      <button type="submit" class="btn btn-success w-100">✅ Registrar Enfermero</button>
+    </div>
+  </div>
+</form>
+</div>
+
+  <div class="table-responsive">
+    <table class="table table-hover table-striped align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>🧑‍⚕️ Nombre</th>
+          <th>🆔 Cédula</th>
+          <th>📧 Correo</th>
+          <th>📞 Teléfono</th>
+          <th>🩺 Tipo</th>
+          <th>⚙️ Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for enfermero in enfermeros %}
+        <tr>
+          <td>{{ enfermero[1] }}</td>
+          <td>{{ enfermero[4] }}</td>
+          <td>{{ enfermero[5] }}</td>
+          <td>{{ enfermero[6] }}</td>
+          <td>{{ enfermero[2] }}</td>
+          <td>
+            <button class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalEnf{{ enfermero[0] }}">🔍 Detalles</button>
+            <a href="{{ url_for('delete_enfermero', id=enfermero[0]) }}" class="btn btn-danger btn-sm"
+               onclick="return confirm('¿Eliminar enfermero?{% if enfermero[3] %} Está en el equipo: {{ enfermero[3] }}.{% endif %}');">🗑️ Eliminar</a>
+          </td>
+        </tr>
+
+        <!-- Modal de detalles del enfermero -->
+        <div class="modal fade" id="modalEnf{{ enfermero[0] }}" tabindex="-1" aria-labelledby="modalEnfLabel{{ enfermero[0] }}" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="modalEnfLabel{{ enfermero[0] }}">🔍 Detalles del Enfermero</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+              </div>
+              <div class="modal-body">
+                <p><strong>🧑‍⚕️ Nombre:</strong> {{ enfermero[1] }}</p>
+                <p><strong>🆔 Cédula:</strong> {{ enfermero[4] }}</p>
+                <p><strong>📧 Correo:</strong> {{ enfermero[5] }}</p>
+                <p><strong>📞 Teléfono:</strong> {{ enfermero[6] }}</p>
+                <p><strong>🩺 Tipo:</strong> {{ enfermero[2] }}</p>
+                <p><strong>🧬 Equipo Médico:</strong> {{ enfermero[3] or 'No asignado' }}</p>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- 🧬 Equipos Médicos -->
+<div class="tab-pane fade" id="equipos">
+  <div class="card p-3 mb-3">
+    <h5 class="mb-3">➕ Crear Equipo Médico</h5>
+    <form method="POST" action="{{ url_for('add_equipo') }}">
+      <div class="row">
+        <div class="col-md-4 mb-2">
+          <label class="form-label">🧬 Nombre del Equipo</label>
+          <input type="text" class="form-control" name="nombre_equipo" required>
+        </div>
+        <div class="col-md-4 mb-2">
+          <label class="form-label">👨‍⚕️ Médico Encargado</label>
+          <select class="form-control" name="medico_id" required>
+            <option value="">Seleccionar médico</option>
+            {% for medico in medicos %}
+              <option value="{{ medico[0] }}">{{ medico[1] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4 mb-2">
+          <label class="form-label">🧑‍⚕️ Enfermeros del Equipo</label>
+          <select class="form-control" name="enfermeros_ids" multiple required>
+            {% for enfermero in enfermeros %}
+              <option value="{{ enfermero[0] }}">{{ enfermero[1] }} ({{ enfermero[2] }})</option>
+            {% endfor %}
+          </select>
+          <small class="text-muted">Ctrl+Click para seleccionar varios</small>
+        </div>
+        <div class="col-md-12 mb-2">
+          <button type="submit" class="btn btn-success w-100">✅ Crear Equipo</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover table-striped align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>🧬 Nombre del Equipo</th>
+          <th>👨‍⚕️ Médico Encargado</th>
+          <th>🧑‍⚕️ Enfermeros Asignados</th>
+          <th>⚙️ Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for equipo in equipos %}
+        <tr>
+          <td>{{ equipo.nombre_equipo }}</td>
+          <td>{{ equipo.medico_nombre }}</td>
+          <td>
+            {% for enf in equipo.enfermeros %}
+              🧑‍⚕️ {{ enf.nombre }} <span class="text-muted">({{ enf.tipo }})</span>{% if not loop.last %}, {% endif %}
+            {% endfor %}
+          </td>
+          <td>
+            <a href="{{ url_for('editar_equipo', equipo_id=equipo.id) }}" class="btn btn-warning btn-sm">✏️ Modificar</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const hash = window.location.hash;
+    if (hash) {
+      const tabTrigger = document.querySelector(`button[data-bs-target="${hash}"]`);
+      if (tabTrigger) {
+        const tab = new bootstrap.Tab(tabTrigger);
+        tab.show();
+      }
+    }
+  });
+</script>
+
+
+
+</div> <!-- cierre de tab-pane equipos -->
+</div> <!-- cierre de tab-content -->
+{% endif %} <!-- cierre de if administrador -->
+</div> <!-- cierre de container -->
 {% endblock %}
