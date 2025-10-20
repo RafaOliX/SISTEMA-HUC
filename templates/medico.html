@@ -1,5 +1,26 @@
 {% extends 'layout.html' %}
 {% block body %}
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- DataTables core -->
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+<!-- DataTables Buttons -->
+<script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
+
+
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap5.min.css">
+
 <div class="container mt-4">
   <h2 class="text-center mb-4">Gestión de Médicos, Enfermeros y Equipos Médicos</h2>
 
@@ -18,26 +39,34 @@
 <div class="tab-pane fade show active" id="medicos">
   <div class="card p-3 mb-3">
   <h5 class="mb-3">➕ Agregar Médico</h5>
-  <form method="POST" action="{{ url_for('add_medico') }}">
+
+    <form method="POST" action="{{ url_for('add_medico') }}" enctype="multipart/form-data">
   <div class="row">
+
+
+
+
+    <div class="col-md-4 mb-3">
+  <label class="form-label">📷 Foto del médico</label>
+  <div class="dropzone border rounded p-3 text-center bg-light" style="cursor:pointer;">
+  <span class="dropzone-text">Haz clic o arrastra una imagen aquí</span>
+  <img class="preview img-thumbnail mt-2" style="display:none;" width="150">
+</div>
+<input type="file" name="foto" class="foto-input" accept="image/*" style="display:none;">
+
+</div>
+
+
     <div class="col-md-4 mb-2">
       <label class="form-label">🧑‍⚕️ Nombre</label>
-      <input type="text" class="form-control" name="nombre" required>
+      <input type="text" class="form-control" name="nombre" placeholder="Ejemplo: Juan Perez" required>
     </div>
 
     <div class="col-md-4 mb-2">
-      <label class="form-label">🩺 Tipo</label>
-      <select class="form-control" name="tipo" required>
-        <option value="">Seleccionar tipo</option>
-        <option value="anestesiólogo">Adjunto</option>
-        <option value="instrumentista">Cirujano Principal</option>
-        <option value="circulante">Cirujano Ayudante</option>
-        <option value="asistente">Adjunto Anestesiólogo</option>
-        <option value="recidente de anestesis">Residente de Anestesia</option>
-        <option value="enfermera instrumentista">Enfermera Instrumentista</option>
-        <option value="enfermero circulante">Enfermero Circulante</option>
-        <option value="enfermero asistente de anestesia">Asistente de Anestesia</option>
-      </select>
+      <label class="form-label">🧠 Especialidad</label>
+      <input type="text" class="form-control" name="especialidad" placeholder="Ejemplo: CIRUGÍA GENERAL" required>
+
+    </select>
     </div>
 
     <div class="col-md-4 mb-2">
@@ -48,13 +77,13 @@
           <option value="E">E</option>
           <option value="P">P</option>
         </select>
-        <input type="text" class="form-control" name="numero_cedula" required>
+        <input type="text" class="form-control" name="numero_cedula" placeholder="123456789" required>
       </div>
     </div>
 
     <div class="col-md-4 mb-2">
       <label class="form-label">📧 Correo</label>
-      <input type="email" class="form-control" name="correo" required>
+      <input type="email" class="form-control" name="correo" placeholder="Ejemplo: hola@emeplo.com">
     </div>
 
     <div class="col-md-4 mb-2">
@@ -67,12 +96,12 @@
           <option value="0422">0422</option>
           <option value="0416">0416</option>
         </select>
-        <input type="tel" class="form-control" name="numero_telefono" required>
+        <input type="tel" class="form-control" name="numero_telefono" placeholder="123456789">
       </div>
     </div>
 
     <div class="col-md-12 mb-2">
-      <button type="submit" class="btn btn-success w-100">✅ Registrar Enfermero</button>
+      <button type="submit" class="btn btn-success w-100">✅ Registrar Medico</button>
     </div>
   </div>
 </form>
@@ -80,9 +109,11 @@
 </div>
 
   <div class="table-responsive">
-    <table class="table table-hover table-striped align-middle">
+    <table id="tablaMedicos" class="table table-hover table-striped align-middle">
+
       <thead class="table-light">
         <tr>
+          <th>📸 Foto</th>
           <th>👨‍⚕️ Nombre</th>
           <th>🆔 Cédula</th>
           <th>🧠 Especialidad</th>
@@ -94,17 +125,67 @@
       <tbody>
         {% for medico in medicos %}
         <tr>
+          <td>
+          {% if medico[7] %}
+  <img src="{{ url_for('static', filename='fotos_medicos/' ~ medico[7]) }}" class="img-thumbnail" width="100">
+{% else %}
+  <span class="text-muted">Sin foto</span>
+{% endif %}
+</td>
           <td>{{ medico[1] }}</td>
           <td>{{ medico[2] }}</td>
           <td>{{ medico[3] }}</td>
           <td>{{ medico[4] }}</td>
           <td>{{ medico[5] }}</td>
           <td>
+              <!-- Botón para abrir el modal de edición -->
+            <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editarMedico{{ medico[0] }}">✏️ Editar</button>
+
+            <!-- Modal de edición -->
+            <div class="modal fade" id="editarMedico{{ medico[0] }}" tabindex="-1" aria-labelledby="editarMedicoLabel{{ medico[0] }}" aria-hidden="true">
+              <div class="modal-dialog modal-dialog-centered">
+                <form method="POST" action="{{ url_for('update_medico', id=medico[0]) }}" enctype="multipart/form-data" class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="editarMedicoLabel{{ medico[0] }}">✏️ Editar Médico</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                  </div>
+                  <div class="modal-body">
+                    <label class="form-label">Nombre</label>
+                    <input type="text" name="nombre" class="form-control mb-2" value="{{ medico[1] }}" required>
+
+                    <label class="form-label">Especialidad</label>
+                    <input type="text" name="especialidad" class="form-control mb-2" value="{{ medico[3] }}" required>
+
+                    <label class="form-label">Correo</label>
+                    <input type="email" name="correo" class="form-control mb-2" value="{{ medico[4] }}" required>
+
+                    <label class="form-label">Teléfono</label>
+                    <input type="text" name="telefono" class="form-control mb-2" value="{{ medico[5] }}" required>
+
+                    <label class="form-label">Cédula</label>
+                    <input type="text" name="cedula" class="form-control mb-2" value="{{ medico[2] }}" required>
+
+                    <label class="form-label">Foto (opcional)</label>
+                   <div class="dropzone border rounded p-3 text-center bg-light" style="cursor:pointer;">
+                    <span class="dropzone-text">Haz clic o arrastra una imagen aquí</span>
+                    <img class="preview img-thumbnail mt-2" style="display:none;" width="150">
+                  </div>
+                  <input type="file" name="foto" class="foto-input" accept="image/*" style="display:none;">
+
+                  </div>
+                  <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">💾 Guardar cambios</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
             <button class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalMedico{{ medico[0] }}">🔍 Detalles</button>
             <a href="{{ url_for('delete_medico', id=medico[0]) }}" class="btn btn-danger btn-sm"
                onclick="return confirm('¿Eliminar médico?{% if medico[6] %} Está en el equipo: {{ medico[6] }}.{% endif %}');">🗑️ Eliminar</a>
           </td>
         </tr>
+        
 
         <!-- Modal de detalles del médico -->
         <div class="modal fade" id="modalMedico{{ medico[0] }}" tabindex="-1" aria-labelledby="modalMedicoLabel{{ medico[0] }}" aria-hidden="true">
@@ -115,6 +196,12 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
               </div>
               <div class="modal-body">
+                {% if medico[7] %}
+  <img src="{{ url_for('static', filename='fotos_medicos/' ~ medico[7]) }}" class="img-thumbnail" width="100">
+{% else %}
+  <span class="text-muted">Sin foto</span>
+{% endif %}
+
                 <p><strong>👨‍⚕️ Nombre:</strong> {{ medico[1] }}</p>
                 <p><strong>🆔 Cédula:</strong> {{ medico[2] }}</p>
                 <p><strong>🧠 Especialidad:</strong> {{ medico[3] }}</p>
@@ -122,7 +209,7 @@
                 <p><strong>📞 Teléfono:</strong> {{ medico[5] }}</p>
                 <p><strong>🧬 Equipo Médico:</strong> {{ medico[6] or 'No asignado' }}</p>
                 {% if medico|length > 7 %}
-                  <p><strong>📅 Fecha de ingreso:</strong> {{ medico[7] }}</p>
+                  <p><strong>📅 Fecha de ingreso:</strong> {{ medico[8] }}</p>
                 {% endif %}
               </div>
               <div class="modal-footer">
@@ -141,8 +228,18 @@
 <div class="tab-pane fade" id="enfermeros">
   <div class="card p-3 mb-3">
     <h5 class="mb-3">➕ Agregar Enfermero</h5>
-    <form method="POST" action="{{ url_for('add_enfermero') }}">
+    <form method="POST" action="{{ url_for('add_enfermero') }}" enctype="multipart/form-data">
   <div class="row">
+
+    <div class="col-md-4 mb-3">
+      <label class="form-label">📷 Foto del enfermero</label>
+      <div class="dropzone border rounded p-3 text-center bg-light" style="cursor:pointer;">
+        <span class="dropzone-text">Haz clic o arrastra una imagen aquí</span>
+        <img class="preview img-thumbnail mt-2" style="display:none;" width="150">
+      </div>
+      <input type="file" name="foto" class="foto-input" accept="image/*" style="display:none;">
+    </div>
+
     <div class="col-md-4 mb-2">
       <label class="form-label">🧑‍⚕️ Nombre</label>
       <input type="text" class="form-control" name="nombre" required>
@@ -156,7 +253,7 @@
         <option value="instrumentista">Cirujano Principal</option>
         <option value="circulante">Cirujano Ayudante</option>
         <option value="asistente">Adjunto Anestesiólogo</option>
-        <option value="recidente de anestesis">Residente de Anestesia</option>
+        <option value="residente de anestesia">Residente de Anestesia</option>
         <option value="enfermera instrumentista">Enfermera Instrumentista</option>
         <option value="enfermero circulante">Enfermero Circulante</option>
         <option value="enfermero asistente de anestesia">Asistente de Anestesia</option>
@@ -199,61 +296,122 @@
     </div>
   </div>
 </form>
+
 </div>
 
-  <div class="table-responsive">
-    <table class="table table-hover table-striped align-middle">
-      <thead class="table-light">
-        <tr>
-          <th>🧑‍⚕️ Nombre</th>
-          <th>🆔 Cédula</th>
-          <th>📧 Correo</th>
-          <th>📞 Teléfono</th>
-          <th>🩺 Tipo</th>
-          <th>⚙️ Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for enfermero in enfermeros %}
-        <tr>
-          <td>{{ enfermero[1] }}</td>
-          <td>{{ enfermero[4] }}</td>
-          <td>{{ enfermero[5] }}</td>
-          <td>{{ enfermero[6] }}</td>
-          <td>{{ enfermero[2] }}</td>
-          <td>
-            <button class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalEnf{{ enfermero[0] }}">🔍 Detalles</button>
-            <a href="{{ url_for('delete_enfermero', id=enfermero[0]) }}" class="btn btn-danger btn-sm"
-               onclick="return confirm('¿Eliminar enfermero?{% if enfermero[3] %} Está en el equipo: {{ enfermero[3] }}.{% endif %}');">🗑️ Eliminar</a>
-          </td>
-        </tr>
+  <div class="table-responsive mt-4" id="tabla-enfermeros">
+  <h5 class="mb-3">🩺 Enfermeros Registrados</h5>
+<table id="tablaEnfermeros" class="table table-hover table-striped align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>📸 Foto</th>
+        <th>👨‍⚕️ Nombre</th>
+        <th>🩺 Tipo</th>
+        <th>🆔 Cédula</th>
+        <th>📧 Correo</th>
+        <th>📞 Teléfono</th>
+        <th>⚙️ Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for enfermero in enfermeros %}
+      <tr>
+        <td>
+          {% if enfermero[7] %}
+            <img src="{{ url_for('static', filename='fotos_enfermeros/' ~ enfermero[7]) }}" class="img-thumbnail" width="100">
+          {% else %}
+            <span class="text-muted">Sin foto</span>
+          {% endif %}
+        </td>
+        <td>{{ enfermero[1] }}</td>
+        <td>{{ enfermero[2] }}</td>
+        <td>{{ enfermero[4] }}</td>
+        <td>{{ enfermero[5] }}</td>
+        <td>{{ enfermero[6] }}</td>
+        <td>
 
-        <!-- Modal de detalles del enfermero -->
-        <div class="modal fade" id="modalEnf{{ enfermero[0] }}" tabindex="-1" aria-labelledby="modalEnfLabel{{ enfermero[0] }}" aria-hidden="true">
-          <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title" id="modalEnfLabel{{ enfermero[0] }}">🔍 Detalles del Enfermero</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-              </div>
-              <div class="modal-body">
-                <p><strong>🧑‍⚕️ Nombre:</strong> {{ enfermero[1] }}</p>
-                <p><strong>🆔 Cédula:</strong> {{ enfermero[4] }}</p>
-                <p><strong>📧 Correo:</strong> {{ enfermero[5] }}</p>
-                <p><strong>📞 Teléfono:</strong> {{ enfermero[6] }}</p>
-                <p><strong>🩺 Tipo:</strong> {{ enfermero[2] }}</p>
-                <p><strong>🧬 Equipo Médico:</strong> {{ enfermero[3] or 'No asignado' }}</p>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-              </div>
+          <!-- Botón para abrir el modal de edición -->
+<button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editarEnfermero{{ enfermero[0] }}">✏️ Editar</button>
+
+<!-- Modal de edición -->
+<div class="modal fade" id="editarEnfermero{{ enfermero[0] }}" tabindex="-1" aria-labelledby="editarEnfermeroLabel{{ enfermero[0] }}" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="POST" action="{{ url_for('update_enfermero', id=enfermero[0]) }}" enctype="multipart/form-data" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editarEnfermeroLabel{{ enfermero[0] }}">✏️ Editar Enfermero</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">Nombre</label>
+        <input type="text" name="nombre" class="form-control mb-2" value="{{ enfermero[1] }}" required>
+
+        <label class="form-label">Tipo</label>
+        <input type="text" name="tipo" class="form-control mb-2" value="{{ enfermero[2] }}" required>
+
+        <label class="form-label">Correo</label>
+        <input type="email" name="correo" class="form-control mb-2" value="{{ enfermero[5] }}" required>
+
+        <label class="form-label">Teléfono</label>
+        <input type="text" name="telefono" class="form-control mb-2" value="{{ enfermero[6] }}" required>
+
+        <label class="form-label">Cédula</label>
+        <input type="text" name="cedula" class="form-control mb-2" value="{{ enfermero[4] }}" required>
+
+        <label class="form-label">Foto (opcional)</label>
+        <div class="dropzone border rounded p-3 text-center bg-light" style="cursor:pointer;">
+          <span class="dropzone-text">Haz clic o arrastra una imagen aquí</span>
+          <img class="preview img-thumbnail mt-2" style="display:none;" width="150">
+        </div>
+        <input type="file" name="foto" class="foto-input" accept="image/*" style="display:none;">
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-primary">💾 Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+          <!-- Botón para ver detalles -->
+          <button class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalEnfermero{{ enfermero[0] }}">🔍 Detalles</button>
+          <a href="{{ url_for('delete_enfermero', id=enfermero[0]) }}" class="btn btn-danger btn-sm"
+             onclick="return confirm('¿Eliminar enfermero?');">🗑️ Eliminar</a>
+        </td>
+      </tr>
+
+      <!-- Modal de detalles del enfermero -->
+      <div class="modal fade" id="modalEnfermero{{ enfermero[0] }}" tabindex="-1" aria-labelledby="modalEnfermeroLabel{{ enfermero[0] }}" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="modalEnfermeroLabel{{ enfermero[0] }}">🔍 Detalles del Enfermero</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+              {% if enfermero[7] %}
+                <img src="{{ url_for('static', filename='fotos_enfermeros/' ~ enfermero[7]) }}" class="img-thumbnail" width="100">
+              {% else %}
+                <span class="text-muted">Sin foto</span>
+              {% endif %}
+              <p><strong>👨‍⚕️ Nombre:</strong> {{ enfermero[1] }}</p>
+              <p><strong>🩺 Tipo:</strong> {{ enfermero[2] }}</p>
+              <p><strong>🆔 Cédula:</strong> {{ enfermero[4] }}</p>
+              <p><strong>📧 Correo:</strong> {{ enfermero[5] }}</p>
+              <p><strong>📞 Teléfono:</strong> {{ enfermero[6] }}</p>
+              {% if enfermero|length > 8 %}
+                <p><strong>📅 Fecha de ingreso:</strong> {{ enfermero[8] }}</p>
+              {% endif %}
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
             </div>
           </div>
         </div>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+      </div>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
 </div>
 
 
@@ -331,6 +489,161 @@
         tab.show();
       }
     }
+  });
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.dropzone').forEach((dropzone, index) => {
+    const fotoInput = dropzone.parentElement.querySelector('.foto-input');
+    const preview = dropzone.querySelector('.preview');
+    const dropzoneText = dropzone.querySelector('.dropzone-text');
+
+    // Abrir explorador al hacer clic
+    dropzone.addEventListener('click', () => fotoInput.click());
+
+    // Vista previa al seleccionar archivo
+    fotoInput.addEventListener('change', () => {
+      const file = fotoInput.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          preview.src = e.target.result;
+          preview.style.display = 'block';
+          dropzoneText.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Drag & drop
+    dropzone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropzone.classList.add('border-primary');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('border-primary');
+    });
+
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.classList.remove('border-primary');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        fotoInput.files = dataTransfer.files;
+
+        const reader = new FileReader();
+        reader.onload = e => {
+          preview.src = e.target.result;
+          preview.style.display = 'block';
+          dropzoneText.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Pegar imagen desde portapapeles
+    dropzone.addEventListener('paste', e => {
+      const items = e.clipboardData.items;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const blob = item.getAsFile();
+          const file = new File([blob], "pasted_image.png", { type: blob.type });
+          const dataTransfer = new DataTransfer();
+          dataTransfer.items.add(file);
+          fotoInput.files = dataTransfer.files;
+
+          const reader = new FileReader();
+          reader.onload = e => {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+            dropzoneText.style.display = 'none';
+          };
+          reader.readAsDataURL(blob);
+        }
+      }
+    });
+  });
+});
+</script>
+<script>
+  $(document).ready(function () {
+    $('#tablaMedicos').DataTable({
+      dom: 'Bfrtip',
+      buttons: [
+        {
+          extend: 'excelHtml5',
+          text: '📤 Exportar a Excel',
+          className: 'btn btn-success btn-sm'
+        },
+        {
+          extend: 'pdfHtml5',
+          text: '📄 Exportar a PDF',
+          className: 'btn btn-danger btn-sm',
+          orientation: 'landscape',
+          pageSize: 'A4'
+        },
+        {
+          extend: 'print',
+          text: '🖨️ Imprimir',
+          className: 'btn btn-secondary btn-sm'
+        }
+      ],
+      language: {
+        search: "🔍 Buscar:",
+        lengthMenu: "Mostrar _MENU_ registros por página",
+        zeroRecords: "No se encontraron resultados",
+        info: "Mostrando _START_ a _END_ de _TOTAL_ registros",
+        infoEmpty: "Sin registros disponibles",
+        infoFiltered: "(filtrado de _MAX_ registros totales)",
+        paginate: {
+          first: "Primero",
+          last: "Último",
+          next: "Siguiente",
+          previous: "Anterior"
+        }
+      }
+    });
+
+    $('#tablaEnfermeros').DataTable({
+      dom: 'Bfrtip',
+      buttons: [
+        {
+          extend: 'excelHtml5',
+          text: '📤 Exportar a Excel',
+          className: 'btn btn-success btn-sm'
+        },
+        {
+          extend: 'pdfHtml5',
+          text: '📄 Exportar a PDF',
+          className: 'btn btn-danger btn-sm',
+          orientation: 'landscape',
+          pageSize: 'A4'
+        },
+        {
+          extend: 'print',
+          text: '🖨️ Imprimir',
+          className: 'btn btn-secondary btn-sm'
+        }
+      ],
+      language: {
+        search: "🔍 Buscar:",
+        lengthMenu: "Mostrar _MENU_ registros por página",
+        zeroRecords: "No se encontraron resultados",
+        info: "Mostrando _START_ a _END_ de _TOTAL_ registros",
+        infoEmpty: "Sin registros disponibles",
+        infoFiltered: "(filtrado de _MAX_ registros totales)",
+        paginate: {
+          first: "Primero",
+          last: "Último",
+          next: "Siguiente",
+          previous: "Anterior"
+        }
+      }
+    });
   });
 </script>
 

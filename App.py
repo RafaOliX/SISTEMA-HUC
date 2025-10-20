@@ -4,6 +4,8 @@ import pyotp
 import qrcode
 import os
 from datetime import datetime
+import os
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -242,19 +244,39 @@ def medico():
     cur = mysql.connection.cursor()
     # Traer médicos junto con el nombre del equipo médico (si tiene)
     cur.execute("""
-        SELECT m.id, m.nombre, m.cedula, m.especialidad, m.correo, m.telefono, em.nombre_equipo
-        FROM medicos m
-        LEFT JOIN equipos_medicos em ON m.id = em.medico_id
-    """)
-    medicos = cur.fetchall()
+    SELECT m.id, m.nombre, m.cedula, m.especialidad, m.correo, m.telefono, em.nombre_equipo, m.foto, m.fecha_ingreso
+    FROM medicos m
+    LEFT JOIN equipos_medicos em ON m.id = em.medico_id
+""")
+
+
+    cur.execute("""
+    SELECT m.id, m.nombre, m.cedula, m.especialidad, m.correo, m.telefono, em.nombre_equipo, m.foto, m.fecha_ingreso
+    FROM medicos m
+    LEFT JOIN equipos_medicos em ON m.id = em.medico_id
+""")
+    medicos_raw = cur.fetchall()
+
+    medicos = []
+    for m in medicos_raw:
+        fecha_formateada = m[8].strftime('%d/%m/%Y') if m[8] else 'Sin fecha'
+        medicos.append(m[:8] + (fecha_formateada,))
+
+
     # Traer enfermeros junto con el nombre del equipo médico (si tiene)
     cur.execute("""
-    SELECT e.id, e.nombre, e.tipo, em.nombre_equipo, e.cedula, e.correo, e.telefono
+    SELECT e.id, e.nombre, e.tipo, em.nombre_equipo, e.cedula, e.correo, e.telefono, e.foto, e.fecha_ingreso
     FROM enfermeros e
     LEFT JOIN equipo_enfermeros ee ON e.id = ee.enfermero_id
     LEFT JOIN equipos_medicos em ON ee.equipo_id = em.id
-""")
-    enfermeros = cur.fetchall()
+    """)
+    enfermeros_raw = cur.fetchall()
+
+    enfermeros = []
+    for e in enfermeros_raw:
+        fecha_formateada = e[8].strftime('%d/%m/%Y') if e[8] else 'Sin fecha'
+        enfermeros.append(e[:8] + (fecha_formateada,))
+
 
     # Equipos médicos con nombres de médico y enfermeros
     cur.execute("SELECT * FROM equipos_medicos")
@@ -285,26 +307,90 @@ def add_medico():
     especialidad = request.form['especialidad']
     correo = request.form['correo']
 
-    # Combinar prefijo y número de cédula
     prefijo = request.form.get('prefijo_cedula')
     numero = request.form.get('numero_cedula')
     cedula = f"{prefijo}-{numero}" if prefijo and numero else None
 
-    # Combinar código y número de teléfono
     codigo = request.form.get('codigo_pais')
     telefono = request.form.get('numero_telefono')
     telefono_completo = f"{codigo}-{telefono}" if codigo and telefono else None
 
+    foto = request.files.get('foto')
+    nombre_foto = None
+
+    if foto and foto.filename and foto.filename != '':
+        nombre_normalizado = secure_filename(nombre.replace(" ", "_"))
+        carpeta_medico = os.path.join('static/fotos_medicos', f"medico_{nombre_normalizado}_{cedula}")
+        os.makedirs(carpeta_medico, exist_ok=True)
+
+        nombre_archivo = secure_filename(foto.filename)
+        ruta_foto = os.path.join(carpeta_medico, nombre_archivo)
+
+        try:
+            foto.save(ruta_foto)
+            nombre_foto = f"medico_{nombre_normalizado}_{cedula}/{nombre_archivo}"
+        except Exception as e:
+            print(f"Error al guardar la imagen: {e}")
+            flash('Hubo un problema al guardar la foto.')
+            nombre_foto = None
+
+
+
+
     if not cedula:
         return "Error: Cédula incompleta", 400
 
-    # Inserta en la base de datos
     cursor = mysql.connection.cursor()
     cursor.execute("""
-        INSERT INTO medicos (nombre, especialidad, telefono, cedula, correo)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (nombre, especialidad, telefono_completo, cedula, correo))
+        INSERT INTO medicos (nombre, especialidad, telefono, cedula, correo, foto)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (nombre, especialidad, telefono_completo, cedula, correo, nombre_foto))
     mysql.connection.commit()
+    return redirect(url_for('medico'))
+
+# Actualizar médico
+
+@app.route('/update_medico/<int:id>', methods=['POST'])
+def update_medico(id):
+    if session.get('rol') != 'administrador':
+        flash('Acceso solo para administradores.')
+        return redirect(url_for('dashboard'))
+
+    nombre = request.form['nombre']
+    especialidad = request.form['especialidad']
+    correo = request.form['correo']
+    telefono = request.form['telefono']
+    cedula = request.form['cedula']
+
+    foto = request.files.get('foto')
+    nombre_foto = None
+
+    if foto and foto.filename != '':
+        # Crear carpeta personalizada con nombre y cédula
+        nombre_normalizado = secure_filename(nombre.replace(" ", "_"))
+        carpeta_medico = os.path.join('static/fotos_medicos', f"medico_{nombre_normalizado}_{cedula}")
+        os.makedirs(carpeta_medico, exist_ok=True)
+
+        nombre_archivo = secure_filename(foto.filename)
+        ruta_foto = os.path.join(carpeta_medico, nombre_archivo)
+        foto.save(ruta_foto)
+
+        # Ruta relativa para guardar en la base de datos
+        nombre_foto = f"medico_{nombre_normalizado}_{cedula}/{nombre_archivo}"
+
+
+    cur = mysql.connection.cursor()
+    if nombre_foto:
+        cur.execute("""
+            UPDATE medicos SET nombre=%s, especialidad=%s, correo=%s, telefono=%s, cedula=%s, foto=%s WHERE id=%s
+        """, (nombre, especialidad, correo, telefono, cedula, nombre_foto, id))
+    else:
+        cur.execute("""
+            UPDATE medicos SET nombre=%s, especialidad=%s, correo=%s, telefono=%s, cedula=%s WHERE id=%s
+        """, (nombre, especialidad, correo, telefono, cedula, id))
+
+    mysql.connection.commit()
+    flash('Médico actualizado correctamente.')
     return redirect(url_for('medico'))
 
 
@@ -337,18 +423,76 @@ def add_enfermero():
     nombre = request.form.get('nombre')
     tipo = request.form.get('tipo')
     cedula = request.form.get('prefijo_cedula') + '-' + request.form.get('numero_cedula')
-    telefono = request.form.get('codigo_pais') + ' ' + request.form.get('numero_telefono')
+    telefono = request.form.get('codigo_pais') + '-' + request.form.get('numero_telefono')
     correo = request.form.get('correo')
+
+    foto = request.files.get('foto')
+    nombre_foto = None
+
+    if foto and foto.filename != '':
+        carpeta = os.path.join('static/fotos_enfermeros', f"enfermero_{cedula}")
+        os.makedirs(carpeta, exist_ok=True)
+        nombre_foto = secure_filename(foto.filename)
+        ruta_foto = os.path.join(carpeta, nombre_foto)
+        foto.save(ruta_foto)
+        nombre_foto = f"enfermero_{cedula}/{nombre_foto}"
 
     cur = mysql.connection.cursor()
     cur.execute("""
-        INSERT INTO enfermeros (nombre, tipo, cedula, correo, telefono)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (nombre, tipo, cedula, correo, telefono))
+        INSERT INTO enfermeros (nombre, tipo, cedula, correo, telefono, foto)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (nombre, tipo, cedula, correo, telefono, nombre_foto))
     mysql.connection.commit()
     flash('Enfermero agregado correctamente')
     return redirect(url_for('medico') + '#enfermeros')
 
+
+
+
+@app.route('/update_enfermero/<int:id>', methods=['POST'])
+def update_enfermero(id):
+    if session.get('rol') != 'administrador':
+        flash('Acceso solo para administradores.')
+        return redirect(url_for('dashboard'))
+
+    nombre = request.form['nombre']
+    tipo = request.form['tipo']
+    correo = request.form['correo']
+    telefono = request.form['telefono']
+    cedula = request.form['cedula']
+
+    foto = request.files.get('foto')
+    nombre_foto = None
+
+    if foto and foto.filename and foto.filename != '':
+        nombre_normalizado = secure_filename(nombre.replace(" ", "_"))
+        carpeta = os.path.join('static/fotos_enfermeros', f"enfermero_{nombre_normalizado}_{cedula}")
+        os.makedirs(carpeta, exist_ok=True)
+
+        nombre_archivo = secure_filename(foto.filename)
+        ruta_foto = os.path.join(carpeta, nombre_archivo)
+
+        try:
+            foto.save(ruta_foto)
+            nombre_foto = f"enfermero_{nombre_normalizado}_{cedula}/{nombre_archivo}"
+        except Exception as e:
+            print(f"Error al guardar la imagen: {e}")
+            flash('Hubo un problema al guardar la foto.')
+            nombre_foto = None
+
+    cur = mysql.connection.cursor()
+    if nombre_foto:
+        cur.execute("""
+            UPDATE enfermeros SET nombre=%s, tipo=%s, correo=%s, telefono=%s, cedula=%s, foto=%s WHERE id=%s
+        """, (nombre, tipo, correo, telefono, cedula, nombre_foto, id))
+    else:
+        cur.execute("""
+            UPDATE enfermeros SET nombre=%s, tipo=%s, correo=%s, telefono=%s, cedula=%s WHERE id=%s
+        """, (nombre, tipo, correo, telefono, cedula, id))
+
+    mysql.connection.commit()
+    flash('Enfermero actualizado correctamente.')
+    return redirect(url_for('medico') + '#enfermeros')
 
 
 # Eliminar enfermero (desasigna de todos los equipos antes de eliminar)
