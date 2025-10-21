@@ -2,10 +2,10 @@
 -- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
--- Host: 127.0.0.1
--- Generation Time: Oct 20, 2025 at 01:19 PM
--- Server version: 10.4.32-MariaDB
--- PHP Version: 8.2.12
+-- Servidor: 127.0.0.1
+-- Tiempo de generación: 21-10-2025 a las 00:10:42
+-- Versión del servidor: 10.4.32-MariaDB
+-- Versión de PHP: 8.0.30
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -18,35 +18,37 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `quirofanohuc`
+-- Base de datos: `quirofanohuc`
 --
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `enfermeros`
+-- Estructura de tabla para la tabla `enfermeros`
 --
 
 CREATE TABLE `enfermeros` (
   `id` bigint(20) NOT NULL,
   `nombre` varchar(255) NOT NULL,
-  `tipo` enum('anestesiólogo','instrumentista','circulante','asistente','jefe de enfermería') NOT NULL,
+  `tipo` varchar(100) NOT NULL,
   `cedula` varchar(20) NOT NULL,
   `correo` varchar(100) NOT NULL,
-  `telefono` varchar(20) NOT NULL
+  `telefono` varchar(20) NOT NULL,
+  `foto` varchar(255) DEFAULT NULL,
+  `fecha_ingreso` date NOT NULL DEFAULT curdate()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- Dumping data for table `enfermeros`
+-- Volcado de datos para la tabla `enfermeros`
 --
 
-INSERT INTO `enfermeros` (`id`, `nombre`, `tipo`, `cedula`, `correo`, `telefono`) VALUES
-(6, 'Andres Contreras', 'circulante', 'E-2123123', 'andres@gmail.com', '0414 4852324');
+INSERT INTO `enfermeros` (`id`, `nombre`, `tipo`, `cedula`, `correo`, `telefono`, `foto`, `fecha_ingreso`) VALUES
+(8, 'Sofia Ana Veracruz Martinez', 'circulante', 'V-23456789', 'maria.gomez@gmail.com', '0414-5864387', 'enfermero_Sofia_Ana_Veracruz_Martinez_V-23456789/OIP.webp', '2025-10-20');
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `equipos_medicos`
+-- Estructura de tabla para la tabla `equipos_medicos`
 --
 
 CREATE TABLE `equipos_medicos` (
@@ -55,17 +57,10 @@ CREATE TABLE `equipos_medicos` (
   `nombre_equipo` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Dumping data for table `equipos_medicos`
---
-
-INSERT INTO `equipos_medicos` (`id`, `medico_id`, `nombre_equipo`) VALUES
-(3, 5, 'ATILA EQUIPO');
-
 -- --------------------------------------------------------
 
 --
--- Table structure for table `equipo_enfermeros`
+-- Estructura de tabla para la tabla `equipo_enfermeros`
 --
 
 CREATE TABLE `equipo_enfermeros` (
@@ -76,7 +71,7 @@ CREATE TABLE `equipo_enfermeros` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `historial`
+-- Estructura de tabla para la tabla `historial`
 --
 
 CREATE TABLE `historial` (
@@ -92,7 +87,7 @@ CREATE TABLE `historial` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `historial_uso`
+-- Estructura de tabla para la tabla `historial_uso`
 --
 
 CREATE TABLE `historial_uso` (
@@ -104,17 +99,10 @@ CREATE TABLE `historial_uso` (
   `descripcion` varchar(255) DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Dumping data for table `historial_uso`
---
-
-INSERT INTO `historial_uso` (`id`, `sala_id`, `medico_id`, `fecha_uso`, `duracion`, `descripcion`) VALUES
-(20, 6, 5, '2025-10-18 22:31:23', '03:01:00', 'Requiere intervención');
-
 -- --------------------------------------------------------
 
 --
--- Table structure for table `medicos`
+-- Estructura de tabla para la tabla `medicos`
 --
 
 CREATE TABLE `medicos` (
@@ -124,20 +112,24 @@ CREATE TABLE `medicos` (
   `correo` varchar(100) NOT NULL,
   `telefono` varchar(20) NOT NULL,
   `cedula` varchar(20) NOT NULL,
-  `fecha_ingreso` date NOT NULL DEFAULT curdate()
+  `fecha_ingreso` date NOT NULL DEFAULT curdate(),
+  `foto` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- Dumping data for table `medicos`
+-- Volcado de datos para la tabla `medicos`
 --
 
-INSERT INTO `medicos` (`id`, `nombre`, `especialidad`, `correo`, `telefono`, `cedula`, `fecha_ingreso`) VALUES
-(5, 'panqueca', 'gastroenteria', 'panque123@gmail.com', '04241236789', '19123950', '2025-10-18');
+INSERT INTO `medicos` (`id`, `nombre`, `especialidad`, `correo`, `telefono`, `cedula`, `fecha_ingreso`, `foto`) VALUES
+(7, 'Jose Antonio Olivares Romero', 'Ingeniero Civil', 'jantonio@gmail.com', '0424-2375852', 'V-20564852', '2025-10-20', 'medico_Jose_Antonio_Olivares_Romero_V-20564852/400w-dSKgFIvN4iM.webp'),
+(9, 'Pedro Jose Gutierrez Hernandez', 'CIRUGÍA DE CABEZA Y CUELLO', 'pgutierrez@gmail.com', '0414-6668985', 'V-25845975', '2025-10-20', 'medico_Pedro_Jose_Gutierrez_Hernandez_V-25845975/OIP.webp'),
+(10, 'Andres Jose Perez Martinez', 'CIRUGÍA DE INFANTIL', 'aperez@gmail.com', '0424-9956563', 'V-28918732', '2025-10-20', NULL),
+(12, 'Pablo Martinez Hernandez Rondon', 'CIRUGÍA PARA PERROS', 'pmartinez@gmail.com', '0414-7898586', 'V-22344565', '2025-10-20', 'medico_Pablo_Martinez_Hernandez_Rondon_V-22344565/d698e40a01d77ed5e3394851338a4c5c.jpg');
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `pacientes`
+-- Estructura de tabla para la tabla `pacientes`
 --
 
 CREATE TABLE `pacientes` (
@@ -156,17 +148,17 @@ CREATE TABLE `pacientes` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- Dumping data for table `pacientes`
+-- Volcado de datos para la tabla `pacientes`
 --
 
 INSERT INTO `pacientes` (`id`, `nombre_completo`, `cedula`, `telefono`, `edad`, `fecha_nacimiento`, `tipo_sangre`, `motivo_cirugia`, `equipo_id`, `estado_atencion`, `resultado_final`, `departamento`) VALUES
-(35, 'Oscar Lozano', 'V-12567890', '0414 4206776', 60, '1920-03-23', 'A+', 'Rinoplastia', 3, 'validado', 'Requiere intervención', 'Cirugía Plástica'),
+(35, 'Oscar Lozano', 'V-12567890', '0414 4206776', 60, '1920-03-23', 'A+', 'Rinoplastia', NULL, 'validado', 'Requiere intervención', 'Cirugía Plástica'),
 (36, 'Oscar Lozano', 'V-4567890', '0414 4206776', 60, '1970-10-14', 'A+', 'Rinoplastia', NULL, 'pendiente', NULL, 'Cirugía Plástica');
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `salas_quirofano`
+-- Estructura de tabla para la tabla `salas_quirofano`
 --
 
 CREATE TABLE `salas_quirofano` (
@@ -181,7 +173,7 @@ CREATE TABLE `salas_quirofano` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- Dumping data for table `salas_quirofano`
+-- Volcado de datos para la tabla `salas_quirofano`
 --
 
 INSERT INTO `salas_quirofano` (`id`, `estado`, `x`, `y`, `equipo_id`, `paciente_id`, `hora_inicio`, `hora_fin`) VALUES
@@ -199,7 +191,7 @@ INSERT INTO `salas_quirofano` (`id`, `estado`, `x`, `y`, `equipo_id`, `paciente_
 -- --------------------------------------------------------
 
 --
--- Table structure for table `usuarios`
+-- Estructura de tabla para la tabla `usuarios`
 --
 
 CREATE TABLE `usuarios` (
@@ -211,46 +203,47 @@ CREATE TABLE `usuarios` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- Dumping data for table `usuarios`
+-- Volcado de datos para la tabla `usuarios`
 --
 
 INSERT INTO `usuarios` (`id`, `nombre_usuario`, `contraseña`, `rol`, `2AF`) VALUES
 (1, 'rafa', '1234', 'administrador', 'VL224NIKUIZAYM5VSWC2YKF5KVN5CYJS'),
 (2, 'beto', '1', 'usuario', 'AFHS5XX4TRVLTWN4X37SXSDNHNU4OUSB'),
-(3, 'Garfio', '007', 'administrador', 'XRRYBYRIB4ERNAA5WZIA77SDZDX3X6OR');
+(3, 'Garfio', '007', 'administrador', 'XRRYBYRIB4ERNAA5WZIA77SDZDX3X6OR'),
+(4, 'usuario', '1234', 'usuario', 'G5JO6D6PYSBGIIEZSEV4ZDRH7BUBWNJJ');
 
 --
--- Indexes for dumped tables
+-- Índices para tablas volcadas
 --
 
 --
--- Indexes for table `enfermeros`
+-- Indices de la tabla `enfermeros`
 --
 ALTER TABLE `enfermeros`
   ADD PRIMARY KEY (`id`);
 
 --
--- Indexes for table `equipos_medicos`
+-- Indices de la tabla `equipos_medicos`
 --
 ALTER TABLE `equipos_medicos`
   ADD PRIMARY KEY (`id`),
   ADD KEY `medico_id` (`medico_id`);
 
 --
--- Indexes for table `equipo_enfermeros`
+-- Indices de la tabla `equipo_enfermeros`
 --
 ALTER TABLE `equipo_enfermeros`
   ADD PRIMARY KEY (`equipo_id`,`enfermero_id`),
   ADD KEY `enfermero_id` (`enfermero_id`);
 
 --
--- Indexes for table `historial`
+-- Indices de la tabla `historial`
 --
 ALTER TABLE `historial`
   ADD PRIMARY KEY (`id`);
 
 --
--- Indexes for table `historial_uso`
+-- Indices de la tabla `historial_uso`
 --
 ALTER TABLE `historial_uso`
   ADD PRIMARY KEY (`id`),
@@ -258,109 +251,109 @@ ALTER TABLE `historial_uso`
   ADD KEY `medico_id` (`medico_id`);
 
 --
--- Indexes for table `medicos`
+-- Indices de la tabla `medicos`
 --
 ALTER TABLE `medicos`
   ADD PRIMARY KEY (`id`);
 
 --
--- Indexes for table `pacientes`
+-- Indices de la tabla `pacientes`
 --
 ALTER TABLE `pacientes`
   ADD PRIMARY KEY (`id`),
   ADD KEY `equipo_id` (`equipo_id`);
 
 --
--- Indexes for table `salas_quirofano`
+-- Indices de la tabla `salas_quirofano`
 --
 ALTER TABLE `salas_quirofano`
   ADD PRIMARY KEY (`id`);
 
 --
--- Indexes for table `usuarios`
+-- Indices de la tabla `usuarios`
 --
 ALTER TABLE `usuarios`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `nombre_usuario` (`nombre_usuario`) USING HASH;
 
 --
--- AUTO_INCREMENT for dumped tables
+-- AUTO_INCREMENT de las tablas volcadas
 --
 
 --
--- AUTO_INCREMENT for table `enfermeros`
+-- AUTO_INCREMENT de la tabla `enfermeros`
 --
 ALTER TABLE `enfermeros`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
--- AUTO_INCREMENT for table `equipos_medicos`
+-- AUTO_INCREMENT de la tabla `equipos_medicos`
 --
 ALTER TABLE `equipos_medicos`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
--- AUTO_INCREMENT for table `historial`
+-- AUTO_INCREMENT de la tabla `historial`
 --
 ALTER TABLE `historial`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `historial_uso`
+-- AUTO_INCREMENT de la tabla `historial_uso`
 --
 ALTER TABLE `historial_uso`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
--- AUTO_INCREMENT for table `medicos`
+-- AUTO_INCREMENT de la tabla `medicos`
 --
 ALTER TABLE `medicos`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
--- AUTO_INCREMENT for table `pacientes`
+-- AUTO_INCREMENT de la tabla `pacientes`
 --
 ALTER TABLE `pacientes`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 
 --
--- AUTO_INCREMENT for table `salas_quirofano`
+-- AUTO_INCREMENT de la tabla `salas_quirofano`
 --
 ALTER TABLE `salas_quirofano`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
--- AUTO_INCREMENT for table `usuarios`
+-- AUTO_INCREMENT de la tabla `usuarios`
 --
 ALTER TABLE `usuarios`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
--- Constraints for dumped tables
+-- Restricciones para tablas volcadas
 --
 
 --
--- Constraints for table `equipos_medicos`
+-- Filtros para la tabla `equipos_medicos`
 --
 ALTER TABLE `equipos_medicos`
   ADD CONSTRAINT `equipos_medicos_ibfk_1` FOREIGN KEY (`medico_id`) REFERENCES `medicos` (`id`);
 
 --
--- Constraints for table `equipo_enfermeros`
+-- Filtros para la tabla `equipo_enfermeros`
 --
 ALTER TABLE `equipo_enfermeros`
   ADD CONSTRAINT `equipo_enfermeros_ibfk_1` FOREIGN KEY (`equipo_id`) REFERENCES `equipos_medicos` (`id`),
   ADD CONSTRAINT `equipo_enfermeros_ibfk_2` FOREIGN KEY (`enfermero_id`) REFERENCES `enfermeros` (`id`);
 
 --
--- Constraints for table `historial_uso`
+-- Filtros para la tabla `historial_uso`
 --
 ALTER TABLE `historial_uso`
   ADD CONSTRAINT `historial_uso_ibfk_1` FOREIGN KEY (`sala_id`) REFERENCES `salas_quirofano` (`id`),
   ADD CONSTRAINT `historial_uso_ibfk_2` FOREIGN KEY (`medico_id`) REFERENCES `medicos` (`id`);
 
 --
--- Constraints for table `pacientes`
+-- Filtros para la tabla `pacientes`
 --
 ALTER TABLE `pacientes`
   ADD CONSTRAINT `pacientes_ibfk_1` FOREIGN KEY (`equipo_id`) REFERENCES `equipos_medicos` (`id`);
