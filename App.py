@@ -31,6 +31,18 @@ def login():
     cur.execute("SELECT contraseña, rol FROM usuarios WHERE nombre_usuario = %s", (nombre_usuario,))
     resultado = cur.fetchone()
     if resultado and resultado[0] == contraseña:
+        # Comprobar columna 'estado' si existe
+        try:
+            cur.execute("SELECT estado FROM usuarios WHERE nombre_usuario=%s", (nombre_usuario,))
+            estado = cur.fetchone()
+            if estado and estado[0] == 'pendiente':
+                flash('Tu cuenta está pendiente de aprobación por un administrador. Espera confirmación.')
+                return redirect(url_for('index'))
+        except Exception:
+            # Si no existe columna 'estado', mantenemos la compatibilidad con 'rol' == 'pendiente'
+            if resultado[1] == 'pendiente':
+                flash('Tu cuenta está pendiente de aprobación por un administrador. Espera confirmación.')
+                return redirect(url_for('index'))
         # Usuario y contraseña correctos, guardar en sesión temporal
         session['gmail'] = nombre_usuario
         session['rol'] = resultado[1]  # <--- GUARDA EL ROL EN LA SESIÓN
@@ -113,27 +125,131 @@ def register():
     if request.method == 'POST':
         nombre_usuario = request.form.get('nombre_usuario')
         contraseña = request.form.get('contraseña')
-        rol = request.form.get('rol')
+        # Nuevo flujo: los usuarios se registran como 'usuario' pero con estado 'pendiente'
+        rol = 'usuario'
+        estado = 'pendiente'
         secreto = pyotp.random_base32()
         # Generar QR para Google Authenticator
         otp_uri = pyotp.totp.TOTP(secreto).provisioning_uri(name=nombre_usuario, issuer_name="HUC")
-        if not os.path.exists('static/qr'):
-            os.makedirs('static/qr')
+
+        # Crear carpeta específica para el usuario
+        qr_dir = os.path.join('static', 'qr', nombre_usuario)
+        os.makedirs(qr_dir, exist_ok=True)
+
+        # Guardar el QR dentro de esa carpeta
         img = qrcode.make(otp_uri)
-        img.save(f"static/qr/{nombre_usuario}_qr.png")
+        img.save(os.path.join(qr_dir, f"{nombre_usuario}_qr.png"))
+
+                # Crear cursor antes del try
         cur = mysql.connection.cursor()
         try:
-            cur.execute(
-                "INSERT INTO usuarios (nombre_usuario, contraseña, rol, `2AF`) VALUES (%s, %s, %s, %s)",
-                (nombre_usuario, contraseña, rol, secreto)
-            )
+            # Intentar insertar con columna 'estado' (si existe)
+            try:
+                cur.execute(
+                    "INSERT INTO usuarios (nombre_usuario, contraseña, rol, `2AF`, estado) VALUES (%s, %s, %s, %s, %s)",
+                    (nombre_usuario, contraseña, rol, secreto, estado)
+                )
+            except Exception:
+                # Si la columna 'estado' no existe (esquema antiguo), insertar sin ella
+                cur.execute(
+                    "INSERT INTO usuarios (nombre_usuario, contraseña, rol, `2AF`) VALUES (%s, %s, %s, %s)",
+                    (nombre_usuario, contraseña, rol, secreto)
+                )
             mysql.connection.commit()
             flash('Registro exitoso. Escanee el QR con Google Authenticator.')
             return render_template('show_qr.html', gmail=nombre_usuario)
         except Exception as e:
+            print("Error en registro:", e)
             flash('Error: El usuario ya existe o los datos son inválidos.')
             return redirect(url_for('register'))
+
     return render_template('register.html')
+
+
+@app.route('/usuarios')
+def usuarios():
+    if session.get('rol') != 'administrador':
+        flash('Acceso solo para administradores.')
+        return redirect(url_for('dashboard'))
+    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT nombre_usuario, rol, `2AF`, estado FROM usuarios")
+    usuarios = cur.fetchall()
+    print("Usuarios encontrados:", usuarios)  # 👈 imprime en consola para verificar
+
+
+
+@app.route('/pending_users')
+def pending_users():
+    if session.get('rol') != 'administrador':
+        flash('Acceso solo para administradores.')
+        return redirect(url_for('dashboard'))
+
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT nombre_usuario, rol, `2AF`, estado FROM usuarios")
+    pendientes = cur.fetchall()
+    return render_template('pendientes.html', pendientes=pendientes)
+
+
+
+@app.route('/approve_user/<username>', methods=['POST'])
+def approve_user(username):
+    if session.get('rol') != 'administrador':
+        flash('Acceso solo para administradores.')
+        return redirect(url_for('dashboard'))
+
+    rol = request.form.get('rol', 'usuario')  # por defecto usuario
+    cur = mysql.connection.cursor()
+
+    try:
+        cur.execute("UPDATE usuarios SET estado='aprobado', rol=%s WHERE nombre_usuario=%s", (rol, username))
+    except Exception:
+        cur.execute("UPDATE usuarios SET rol=%s WHERE nombre_usuario=%s", (rol, username))
+
+    mysql.connection.commit()
+    flash(f'Usuario {username} aprobado como {rol}.')
+    return redirect(url_for('pending_users'))
+
+
+@app.route('/reject_user/<username>')
+def reject_user(username):
+    if session.get('rol') != 'administrador':
+        flash('Acceso solo para administradores.')
+        return redirect(url_for('dashboard'))
+    cur = mysql.connection.cursor()
+    cur.execute("DELETE FROM usuarios WHERE nombre_usuario=%s", (username,))
+    mysql.connection.commit()
+    flash(f'Usuario {username} rechazado y eliminado.')
+    return redirect(url_for('pending_users'))
+
+@app.route('/change_password/<username>', methods=['GET', 'POST'])
+def change_password(username):
+    if session.get('rol') != 'administrador':
+        flash('Acceso solo para administradores.')
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        nueva = request.form.get('nueva_contraseña')
+        cur = mysql.connection.cursor()
+        cur.execute("UPDATE usuarios SET contraseña=%s WHERE nombre_usuario=%s", (nueva, username))
+        mysql.connection.commit()
+        flash(f'Contraseña actualizada para {username}.')
+        return redirect(url_for('usuarios'))
+    return render_template('cambiar_contraseña.html', username=username)
+
+@app.route('/change_role/<username>', methods=['POST'])
+def change_role(username):
+    if session.get('rol') != 'administrador':
+        flash('Acceso solo para administradores.')
+        return redirect(url_for('dashboard'))
+    nuevo_rol = request.form.get('rol')
+    cur = mysql.connection.cursor()
+    cur.execute("UPDATE usuarios SET rol=%s WHERE nombre_usuario=%s", (nuevo_rol, username))
+    mysql.connection.commit()
+    flash(f'Rol actualizado para {username}.')
+    return redirect(url_for('usuarios'))
+
+
+
 
 # ------------------- SALAS DE QUIROFANO -------------------
 
@@ -288,10 +404,11 @@ def medico():
         cur.execute("SELECT nombre FROM medicos WHERE id=%s", (medico_id,))
         medico_nombre = cur.fetchone()[0] if medico_id else 'Sin médico'
         # Obtener enfermeros del equipo
-        cur.execute("""SELECT e.nombre, e.tipo FROM equipo_enfermeros ee
-                       JOIN enfermeros e ON ee.enfermero_id = e.id
-                       WHERE ee.equipo_id = %s""", (equipo_id,))
-        enfermeros_equipo = [{'nombre': enf[0], 'tipo': enf[1]} for enf in cur.fetchall()]
+        cur.execute("""SELECT e.id, e.nombre, e.tipo FROM equipo_enfermeros ee
+               JOIN enfermeros e ON ee.enfermero_id = e.id
+               WHERE ee.equipo_id = %s""", (equipo_id,))
+        enfermeros_equipo = [{'id': enf[0], 'nombre': enf[1], 'tipo': enf[2]} for enf in cur.fetchall()]
+
         equipos.append({
             'id': equipo_id,
             'nombre_equipo': nombre_equipo,
@@ -510,6 +627,9 @@ def delete_enfermero(id):
     flash('Enfermero desasignado de todos los equipos y eliminado correctamente.')
     return redirect(url_for('medico') + '#enfermeros')
 
+
+
+# ------Equipos Medicos ---------------
 # Agregar equipo médico
 @app.route('/add_equipo', methods=['POST'])
 def add_equipo():
@@ -582,6 +702,92 @@ def detalle_medico(id):
                            enfermeros=enfermeros,
                            pacientes=pacientes)
 
+
+@app.route('/editar_equipo/<int:equipo_id>', methods=['GET', 'POST'])
+def editar_equipo(equipo_id):
+    if session.get('rol') != 'administrador':
+        flash('Acceso solo para administradores.')
+        return redirect(url_for('dashboard'))
+
+    cur = mysql.connection.cursor()
+
+    if request.method == 'POST':
+        nombre_equipo = request.form.get('nombre_equipo')
+        medico_id = request.form.get('medico_id')
+        enfermeros_ids = request.form.getlist('enfermeros_ids')
+
+        cur.execute("UPDATE equipos_medicos SET nombre_equipo=%s, medico_id=%s WHERE id=%s",
+                    (nombre_equipo, medico_id, equipo_id))
+        cur.execute("DELETE FROM equipo_enfermeros WHERE equipo_id=%s", (equipo_id,))
+        for enf_id in enfermeros_ids:
+            cur.execute("INSERT INTO equipo_enfermeros (equipo_id, enfermero_id) VALUES (%s, %s)",
+                        (equipo_id, enf_id))
+        mysql.connection.commit()
+        flash('Equipo actualizado correctamente.')
+        return redirect(url_for('medico') + '#equipos')
+
+    # GET: mostrar formulario con datos actuales
+    cur.execute("SELECT nombre_equipo, medico_id FROM equipos_medicos WHERE id=%s", (equipo_id,))
+    equipo = cur.fetchone()
+
+    cur.execute("SELECT id, nombre FROM medicos")
+    medicos = cur.fetchall()
+
+    cur.execute("""
+SELECT e.id, e.nombre, e.tipo, e.cedula, e.correo, e.telefono, e.foto, e.fecha_ingreso, em.nombre_equipo
+FROM enfermeros e
+LEFT JOIN equipo_enfermeros ee ON e.id = ee.enfermero_id
+LEFT JOIN equipos_medicos em ON ee.equipo_id = em.id
+""")
+    enfermeros_raw = cur.fetchall()
+
+    enfermeros = []
+    for e in enfermeros_raw:
+        enfermeros.append({
+            'id': e[0],
+            'nombre': e[1],
+            'tipo': e[2],
+            'cedula': e[3],
+            'correo': e[4],
+            'telefono': e[5],
+            'foto': e[6],
+            'fecha_ingreso': e[7].strftime('%d/%m/%Y') if e[7] else 'Sin fecha',
+            'equipo_nombre': e[8]  # puede ser None si está libre
+        })
+
+
+
+    cur.execute("SELECT enfermero_id FROM equipo_enfermeros WHERE equipo_id=%s", (equipo_id,))
+    enfermeros_asignados = [row[0] for row in cur.fetchall()]
+
+    return render_template('editar_equipo.html',
+                           equipo_id=equipo_id,
+                           equipo=equipo,
+                           medicos=medicos,
+                           enfermeros=enfermeros,
+                           enfermeros_asignados=enfermeros_asignados)
+
+
+@app.route('/delete_equipo/<int:equipo_id>')
+def delete_equipo(equipo_id):
+    if session.get('rol') != 'administrador':
+        flash('Acceso solo para administradores.')
+        return redirect(url_for('dashboard'))
+
+    cur = mysql.connection.cursor()
+
+    # 🔁 Desvincular pacientes que usan este equipo
+    cur.execute("UPDATE pacientes SET equipo_id = NULL WHERE equipo_id = %s", (equipo_id,))
+
+    # 🔁 Eliminar relaciones con enfermeros
+    cur.execute("DELETE FROM equipo_enfermeros WHERE equipo_id = %s", (equipo_id,))
+
+    # ✅ Eliminar el equipo
+    cur.execute("DELETE FROM equipos_medicos WHERE id = %s", (equipo_id,))
+
+    mysql.connection.commit()
+    flash('Equipo médico eliminado correctamente.')
+    return redirect(url_for('medico') + '#equipos')
 
 
 # ------------------- PACIENTES -------------------
@@ -996,45 +1202,6 @@ def liberar_quirofano(sala_id):
     flash('Quirófano liberado y listo para usar')
     return redirect(url_for('dashboard'))
 
-@app.route('/editar_equipo/<int:equipo_id>', methods=['GET', 'POST'])
-def editar_equipo(equipo_id):
-    if session.get('rol') != 'administrador':
-        flash('Acceso solo para administradores.')
-        return redirect(url_for('dashboard'))
-    cur = mysql.connection.cursor()
-    # Obtener datos del equipo
-    cur.execute("SELECT * FROM equipos_medicos WHERE id = %s", (equipo_id,))
-    equipo = cur.fetchone()
-    # Obtener todos los médicos
-    cur.execute("SELECT id, nombre FROM medicos")
-    medicos = cur.fetchall()
-    # Obtener todos los enfermeros
-    cur.execute("SELECT id, nombre, tipo FROM enfermeros")
-    enfermeros = cur.fetchall()
-    # Enfermeros asignados a este equipo
-    cur.execute("SELECT enfermero_id FROM equipo_enfermeros WHERE equipo_id = %s", (equipo_id,))
-    enfermeros_asignados = [row[0] for row in cur.fetchall()]
-
-    if request.method == 'POST':
-        # Actualizar médico encargado
-        medico_id = request.form.get('medico_id')
-        cur.execute("UPDATE equipos_medicos SET medico_id = %s WHERE id = %s", (medico_id, equipo_id))
-        # Actualizar enfermeros asignados
-        nuevos_enfermeros = request.form.getlist('enfermeros_ids')
-        # Eliminar todos los enfermeros actuales
-        cur.execute("DELETE FROM equipo_enfermeros WHERE equipo_id = %s", (equipo_id,))
-        # Insertar los nuevos
-        for enf_id in nuevos_enfermeros:
-            cur.execute("INSERT INTO equipo_enfermeros (equipo_id, enfermero_id) VALUES (%s, %s)", (equipo_id, enf_id))
-        mysql.connection.commit()
-        flash('Equipo médico actualizado correctamente.')
-        return redirect(url_for('medico') + '#equipos')
-
-    return render_template('editar_equipo.html',
-                           equipo=equipo,
-                           medicos=medicos,
-                           enfermeros=enfermeros,
-                           enfermeros_asignados=enfermeros_asignados)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=50000)

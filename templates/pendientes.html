@@ -1,0 +1,108 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+<!-- DataTables core -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+<!-- DataTables export buttons -->
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
+<script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+
+
+
+
+<h3>👥 Gestión de Usuarios</h3>
+<div class="table-responsive mt-3">
+  <table id="tablaPendientes" class="table table-bordered table-striped">
+    <thead>
+      <tr>
+        <th>👤 Usuario</th>
+        <th>🧩 Rol</th>
+        <th>🔐 QR 2AF</th>
+        <th>📊 Estado</th>
+        <th>⚙️ Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in pendientes %}
+      <tr>
+        <td>{{ u[0] }}</td>
+        <td>{{ u[1] }}</td>
+        <td>
+          <img src="{{ url_for('static', filename='qr/' + u[0] + '/' + u[0] + '_qr.png') }}"
+               alt="QR 2AF"
+               style="width: 80px; height: 80px;">
+        </td>
+        <td>
+          {% if u[3] == 'pendiente' %}
+            🕒 Pendiente
+          {% elif u[3] == 'aprobado' %}
+            ✅ Aprobado
+          {% else %}
+            ❔ {{ u[3] }}
+          {% endif %}
+        </td>
+        <td>
+          {% if u[3] == 'pendiente' %}
+            <form method="POST" action="{{ url_for('approve_user', username=u[0]) }}" class="d-inline">
+              <select name="rol" class="form-select form-select-sm d-inline w-auto">
+                <option value="usuario">👤 Usuario</option>
+                <option value="administrador">🛡️ Administrador</option>
+              </select>
+              <button type="submit" class="btn btn-success btn-sm">✅ Aprobar</button>
+            </form>
+          {% else %}
+            <form method="POST" action="{{ url_for('change_role', username=u[0]) }}" class="d-inline mt-1">
+              <select name="rol" class="form-select form-select-sm d-inline w-auto">
+                <option value="usuario">👤 Usuario</option>
+                <option value="administrador">🛡️ Administrador</option>
+              </select>
+              <button type="submit" class="btn btn-secondary btn-sm">🔄 Cambiar Rol</button>
+            </form>
+          {% endif %}
+
+          <a href="{{ url_for('change_password', username=u[0]) }}" class="btn btn-warning btn-sm mt-1">🔑 Cambiar Contraseña</a>
+          <a href="{{ url_for('reject_user', username=u[0]) }}" class="btn btn-danger btn-sm mt-1">🗑️ Eliminar</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">🚫 No hay usuarios registrados.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- DataTable con búsqueda y exportación -->
+<script>
+$(document).ready(function () {
+  $('#tablaPendientes').DataTable({
+    dom: 'Bfrtip',
+    buttons: [
+      { extend: 'excelHtml5', text: '📤 Exportar a Excel', className: 'btn btn-success btn-sm' },
+      { extend: 'pdfHtml5', text: '📄 Exportar a PDF', className: 'btn btn-danger btn-sm', orientation: 'landscape' },
+      { extend: 'print', text: '🖨️ Imprimir', className: 'btn btn-secondary btn-sm' }
+    ],
+    language: {
+      search: "🔍 Buscar usuario:",
+      lengthMenu: "Mostrar _MENU_ usuarios",
+      zeroRecords: "🚫 No se encontró ningún usuario",
+      info: "📄 Mostrando _START_ a _END_ de _TOTAL_ usuarios",
+      paginate: {
+        first: "⏮️ Primero", last: "⏭️ Último", next: "➡️ Siguiente", previous: "⬅️ Anterior"
+      }
+    }
+  });
+});
+</script>
+
+
+
+
+
+{% endblock %}

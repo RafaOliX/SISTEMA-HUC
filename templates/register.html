@@ -128,13 +128,7 @@ body, html {
         <div class="mb-3">
           <input type="password" name="contraseña" class="form-control" placeholder="Contraseña" required>
         </div>
-           <div class="mb-3">
-                <select name="rol" class="form-control" required>
-                    <option value="">Selecciona un rol</option>
-                    <option value="administrador">Administrador</option>
-                    <option value="usuario">Usuario</option>
-                </select>
-            </div>
+    {# Eliminado selector de rol. Los nuevos usuarios quedarán pendientes de aprobación por un administrador. #}
         <button type="submit" class="btn btn-success w-100">Registrarse</button>
       </form>
 

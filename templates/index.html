@@ -1,32 +1,77 @@
+{% extends 'auth_layout.html' %}
+{% block body %}
+  <div class="background-image">
+    <div class="background-overlay"></div>
+  </div>
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Iniciar Sesión</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <div class="d-flex align-items-center justify-content-center min-vh-100 position-relative">
+
+    <!-- 🔔 Notificación centrada arriba del card -->
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="position-absolute w-100 text-center" style="top: 20px; z-index: 10;">
+          <div class="alert alert-info alert-dismissible fade show mx-auto" role="alert" style="max-width: 400px;">
+            {{ messages[0] }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+          </div>
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- 🧬 Card centrado -->
+    <div class="card glass-effect p-4 text-center">
+      <div class="mb-3">
+        <img src="/static/logo/huc.png" alt="Logo HUC" style="max-width: 140px;">
+      </div>
+      <h1 class="h5 mb-1">Hospital</h1>
+      <h1 class="h5 mb-1">Universitario</h1>
+      <h1 class="h5 mb-3">de Caracas</h1>
+
+      <hr class="mb-4" style="border-top: 2px solid #0073e6;">
+      <h2 class="h5 mb-4">Iniciar Sesión</h2>
+
+      <form action="{{ url_for('login') }}" method="POST">
+        <div class="mb-3">
+          <input type="text" name="gmail" class="form-control" placeholder="Nombre de usuario" required>
+        </div>
+        <div class="mb-3">
+          <input type="password" name="contraseña" class="form-control" placeholder="Contraseña" required>
+        </div>
+        <button type="submit" class="btn btn-success w-100">Iniciar Sesión</button>
+      </form>
+
+      <div class="mt-3">
+        <a href="{{ url_for('register') }}" class="btn btn-success w-100">Registrarse</a>
+      </div>
+    </div>
+  </div>
+
   <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: 'Segoe UI', sans-serif;
-    }
-
-    .login-grid {
+    .background-image {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
       height: 100vh;
+      background-image: url('/static/fotos/HUCfotoinicio.jpg');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      z-index: -2;
     }
 
-
-    .login-form {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background: #f8f9fa; /* Color de fondo claro */
+    .background-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(255, 255, 255, 0.5);
+      z-index: -1;
     }
 
     .glass-effect {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.9);
       backdrop-filter: blur(10px);
       border-radius: 15px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -40,105 +85,7 @@
     }
 
     .btn-success:hover {
-      background-color: #0073e6;
+      background-color: #005bb5;
     }
-    
-
-
-  .login-form {
-    position: relative;
-    z-index: 1;
-    padding: 2rem;
-    background-color: rgba(255, 255, 255, 0.4); /* fondo semitransparente */
-  }
-
-body, html {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  font-family: 'Segoe UI', sans-serif;
-  position: relative;
-}
-
-.background-image {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-image: url('/static/fotos/HUCfotoinicio.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  z-index: -2;
-}
-
-.background-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-color: rgba(255, 255, 255, 0.5);
-  z-index: -1;
-}
-
-.login-form {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  position: relative;
-  z-index: 1;
-}
-
-.glass-effect {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(10px);
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  width: 100%;
-  max-width: 400px;
-  padding: 2rem;
-}
-
-
   </style>
-</head>
-<body>
-<div class="background-image">
-  <div class="background-overlay"></div>
-</div>
-
-  <div class="login-grid">
-    <div class="background-image">
-    </div>
-    <div class="login-form">
-      <div class="card glass-effect p-4">
-  <!-- Logo y título dentro del panel -->
-  <div class="text-center mb-4">
-    <img src="/static/logo/huc.png" alt="Logo HUC" class="logo-huc mb-2" style="max-width: 140px;">
-    <h1 class="h4">Hospital Universitario de Caracas</h1>
-
-  </div>
-<hr style="margin-top: 0rem; margin-bottom: 1rem; border-top: 2px solid #0073e6;" />
-
-  <h2 class="text-center mb-4">Iniciar Sesión</h2>
-  <form action="{{ url_for('login') }}" method="POST">
-    <div class="mb-3">
-      <input type="text" name="gmail" class="form-control" placeholder="Nombre de usuario" required>
-    </div>
-    <div class="mb-3">
-      <input type="password" name="contraseña" class="form-control" placeholder="Contraseña" required>
-    </div>
-    <button type="submit" class="btn btn-success w-100">Iniciar Sesión</button>
-  </form>
-  <div class="text-center mt-3">
-    <a href="{{ url_for('register') }}" class="btn btn-success w-100">Registrarse</a>
-  </div>
-</div>
-
-    </div>
-  </div>
-</body>
-</html>
+{% endblock %}

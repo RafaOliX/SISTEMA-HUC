@@ -24,7 +24,7 @@
     }
 
     .login-grid {
-      height: 100vh;
+      height: 60vh;
     }
 
 
@@ -97,7 +97,7 @@ body, html {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  height: 60vh;
   position: relative;
   z-index: 1;
 }
@@ -121,16 +121,22 @@ body, html {
   </div>
 
   <div class="register-form">
-    <div class="card glass-effect p-4">
+    <div class="card glass-effect p-4 text-center">
 
-  <div class="container d-flex justify-content-center align-items-center mt-5">
-        <h2 class="mb-4">Escanea este QR en Google Authenticator</h2>
-        <img src="{{ url_for('static', filename='qr/' + gmail + '_qr.png') }}" alt="QR 2FA" class="mb-3" style="width: 200px;">
+      <h2 class="mb-4">Escanea este QR en Google Authenticator</h2>
+
+      <div class="mb-4">
+<img width="300" src="{{ url_for('static', filename='qr/' + gmail + '/' + gmail + '_qr.png') }}" alt="QR 2FA">
+      </div>
+
+      <div>
         <a href="{{ url_for('index') }}" class="btn btn-success w-100">Ir al Login</a>
-</div>
+      </div>
+
     </div>
   </div>
 </body>
+
 </html>
 {% endblock %}
 
