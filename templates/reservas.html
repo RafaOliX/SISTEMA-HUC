@@ -1,0 +1,238 @@
+{% extends 'layout.html' %}
+{% block body %}
+
+<!-- FullCalendar -->
+<!-- FullCalendar -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
+
+
+<style>
+  .card-reservas {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+  }
+  .table thead th {
+    position: sticky;
+    top: 0;
+    background-color: #e9ecef;
+    z-index: 1;
+  }
+  .table-hover tbody tr:hover {
+    background-color: #f1f3f5;
+    transition: background-color 0.2s ease-in-out;
+  }
+
+  
+</style>
+
+
+<style>
+  #calendarioReservas {
+    background-color: #ffffff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .fc-daygrid-day-frame {
+    cursor: pointer;
+  }
+</style>
+
+
+{% set nombres_quirofanos = ['F','G','H','I','J','A','B','C','D','E'] %}
+
+    <div class="text-end mb-2">
+      <button class="btn btn-outline-secondary btn-sm" onclick="mostrarTodasLasReservas()">Ver todas las reservas</button>
+    </div>
+<div class="container mt-5">
+  <h4 class="text-center mb-4">📅 Calendario de Reservas</h4>
+<div id="calendarioReservas" style="height: 600px;"></div>
+</div>
+
+
+  <div class="card-reservas">
+    <div class="text-end mb-3">
+  <a href="{{ url_for('salas') }}" class="btn btn-success btn-sm">
+    📌 Hacer Reserva
+  </a>
+</div>
+
+
+    <h4 class="text-center mb-4">📋 Reservas Programadas</h4>
+    <div class="table-responsive" style="max-height: 500px;">
+      <table id="tablaReservas" class="table table-bordered table-hover table-sm align-middle">
+        <thead class="table-light text-center">
+          <tr>
+            <th>Fecha</th>
+            <th>Hora Inicio</th>
+            <th>Hora Fin</th>
+            <th>Quirófano</th>
+            <th>Paciente</th>
+            <th>Equipo Médico</th>
+            <th>Estado</th>
+            <th>Editar</th>
+          </tr>
+        </thead>
+        <tbody id="reservas-body">
+          {% for r in reservas_pendientes %}
+          {% set nombre_q = nombres_quirofanos[r[1] - 6] %}
+          <tr>
+            <td>{{ r[2] }}</td>
+            <td>{{ r[3] }}</td>
+            <td>{{ r[4] }}</td>
+            <td>{{ nombre_q }}</td>
+            <td>{{ r[6] }}</td>
+            <td>{{ r[7] }}</td>
+            <td><span class="badge bg-primary">{{ r[5]|capitalize }}</span></td>
+            <td><button class="btn btn-sm btn-warning" onclick="abrirModalReserva({{ r[0] }})">Editar</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="modalReserva" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="POST" action="/actualizar_reserva" class="modal-content">
+      <div class="modal-header"><h5>Editar Reserva</h5></div>
+      <div class="modal-body">
+        <input type="hidden" name="id" id="modal-id">
+        <div class="mb-2">
+          <label>Fecha:</label>
+          <input type="date" name="fecha" id="modal-fecha" class="form-control" required>
+        </div>
+        <div class="mb-2">
+          <label>Hora inicio:</label>
+          <input type="time" name="hora_inicio" id="modal-inicio" class="form-control" required>
+        </div>
+        <div class="mb-2">
+          <label>Hora fin:</label>
+          <input type="time" name="hora_fin" id="modal-fin" class="form-control" required>
+        </div>
+        <p><strong>Paciente:</strong> <span id="modal-paciente"></span></p>
+        <p><strong>Equipo Médico:</strong> <span id="modal-equipo"></span></p>
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-success">Guardar cambios</button>
+        <button type="button" class="btn btn-danger" id="btn-eliminar-reserva">Eliminar</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<script>
+function abrirModalReserva(idReserva) {
+  fetch(`/detalle_reserva/${idReserva}`)
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById('modal-id').value = idReserva;
+      document.getElementById('modal-fecha').value = data.fecha;
+      document.getElementById('modal-inicio').value = data.inicio;
+      document.getElementById('modal-fin').value = data.fin;
+      document.getElementById('modal-paciente').textContent = data.paciente;
+      document.getElementById('modal-equipo').textContent = data.equipo;
+
+      document.getElementById('btn-eliminar-reserva').onclick = () => {
+        if (confirm('¿Eliminar esta reserva?')) {
+          fetch(`/eliminar_reserva/${idReserva}`, { method: 'POST' })
+            .then(() => location.reload());
+        }
+      };
+
+      new bootstrap.Modal(document.getElementById('modalReserva')).show();
+    });
+}
+
+
+
+function mostrarTodasLasReservas() {
+  fetch('/reservas_por_fecha/todas')
+    .then(res => res.json())
+    .then(data => {
+      const reservasBody = document.getElementById('reservas-body');
+      reservasBody.innerHTML = '';
+      if (data.length === 0) {
+        reservasBody.innerHTML = '<tr><td colspan="8" class="text-center">No hay reservas registradas</td></tr>';
+      } else {
+        data.forEach(r => {
+          const fila = `
+            <tr>
+              <td>${r.fecha}</td>
+              <td>${r.inicio}</td>
+              <td>${r.fin}</td>
+              <td>${r.sala}</td>
+              <td>${r.paciente}</td>
+              <td>${r.equipo}</td>
+              <td><span class="badge bg-primary">${r.estado.charAt(0).toUpperCase() + r.estado.slice(1)}</span></td>
+              <td><button class="btn btn-sm btn-warning" onclick="abrirModalReserva(${r.id})">Editar</button></td>
+            </tr>`;
+          reservasBody.innerHTML += fila;
+        });
+      }
+    });
+}
+
+
+
+
+document.addEventListener('DOMContentLoaded', function () {
+  const calendarEl = document.getElementById('calendarioReservas');
+  const reservasBody = document.getElementById('reservas-body');
+
+  const calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'dayGridMonth',
+    locale: 'es',
+    height: 600,
+    displayEventTime: false,
+
+    events: function(fetchInfo, successCallback, failureCallback) {
+  fetch('/eventos_resumen')
+    .then(res => res.json())
+    .then(eventos => {
+      successCallback(eventos);
+    })
+    .catch(err => failureCallback(err));
+},
+
+    dateClick: function(info) {
+      fetch(`/reservas_por_fecha/${info.dateStr}`)
+        .then(res => res.json())
+        .then(data => {
+          reservasBody.innerHTML = '';
+          if (data.length === 0) {
+            reservasBody.innerHTML = '<tr><td colspan="8" class="text-center">No hay reservas para este día</td></tr>';
+          } else {
+            data.forEach(r => {
+              const fila = `
+                <tr>
+                  <td>${r.fecha}</td>
+                  <td>${r.inicio}</td>
+                  <td>${r.fin}</td>
+                  <td>${r.sala}</td>
+                  <td>${r.paciente}</td>
+                  <td>${r.equipo}</td>
+                  <td><span class="badge bg-primary">${r.estado.charAt(0).toUpperCase() + r.estado.slice(1)}</span></td>
+                  <td><button class="btn btn-sm btn-warning" onclick="abrirModalReserva(${r.id})">Editar</button></td>
+                </tr>`;
+              reservasBody.innerHTML += fila;
+            });
+          }
+        });
+    }
+  });
+
+  calendar.render();
+});
+</script>
+
+
+
+{% endblock %}

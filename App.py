@@ -7,6 +7,8 @@ from datetime import datetime
 import os
 from werkzeug.utils import secure_filename
 
+from datetime import time
+
 app = Flask(__name__)
 
 # Configuración de la base de datos
@@ -78,17 +80,21 @@ def dashboard():
     if 'usuario_autenticado' in session:
         actualizar_quirofanos_mantenimiento()
         cur = mysql.connection.cursor()
-        # Salas para el SVG
+
+        # Salas para el SVG y tabla
         cur.execute("""
             SELECT s.*, 
                    e.nombre_equipo, 
-                   p.nombre_completo
+                   p.nombre_completo,
+                   m.nombre AS medico_nombre
             FROM salas_quirofano s
             LEFT JOIN equipos_medicos e ON s.equipo_id = e.id
             LEFT JOIN pacientes p ON s.paciente_id = p.id
+            LEFT JOIN medicos m ON e.medico_id = m.id
         """)
         salas = cur.fetchall()
-        # Pacientes pendientes (en quirófano, hora actual < hora_fin, estado pendiente)
+
+        # Pacientes pendientes (en quirófano, estado pendiente)
         cur.execute("""
             SELECT p.id, p.nombre_completo, s.hora_inicio, s.hora_fin, s.id as sala_id
             FROM pacientes p
@@ -96,7 +102,8 @@ def dashboard():
             WHERE p.estado_atencion = 'pendiente'
         """)
         pacientes_pendientes = cur.fetchall()
-        # Pacientes atendidos (hora actual >= hora_fin, estado pendiente)
+
+        # Pacientes atendidos (estado atendido)
         cur.execute("""
             SELECT p.id, p.nombre_completo, s.hora_inicio, s.hora_fin, s.id as sala_id
             FROM pacientes p
@@ -104,12 +111,31 @@ def dashboard():
             WHERE p.estado_atencion = 'atendido'
         """)
         pacientes_atendidos = cur.fetchall()
-        return render_template('dashboard.html', salas=salas,
+
+        # Reservas pendientes (futuras)
+        cur.execute("""
+            SELECT r.*, p.nombre_completo, e.nombre_equipo
+            FROM reservas r
+            LEFT JOIN pacientes p ON r.paciente_id = p.id
+            LEFT JOIN equipos_medicos e ON r.equipo_id = e.id
+            WHERE r.estado = 'pendiente'
+        """)
+        reservas_pendientes = cur.fetchall()
+
+        # Equipos médicos disponibles
+        cur.execute("SELECT id, nombre_equipo FROM equipos_medicos")
+        equipos = cur.fetchall()
+
+        return render_template('dashboard.html',
+                               salas=salas,
                                pacientes_pendientes=pacientes_pendientes,
-                               pacientes_atendidos=pacientes_atendidos)
+                               pacientes_atendidos=pacientes_atendidos,
+                               reservas_pendientes=reservas_pendientes,
+                               equipos=equipos)
     else:
         flash('Debes iniciar sesión primero')
         return redirect(url_for('index'))
+
     
 
 @app.route('/logout')
@@ -259,7 +285,10 @@ def salas():
     if 'usuario_autenticado' not in session:
         flash('Debes iniciar sesión primero')
         return redirect(url_for('index'))
+
     cur = mysql.connection.cursor()
+
+    # Salas quirófano con equipo, paciente y médico
     cur.execute("""
         SELECT s.id, s.estado, s.hora_inicio, s.hora_fin,
                e.nombre_equipo, p.nombre_completo, m.nombre
@@ -269,8 +298,34 @@ def salas():
         LEFT JOIN medicos m ON e.medico_id = m.id
     """)
     salas = cur.fetchall()
-    return render_template('salas.html', salas=salas)
 
+    # Equipos médicos disponibles (no asignados a ninguna sala)
+    cur.execute("""
+        SELECT id, nombre_equipo
+        FROM equipos_medicos
+        WHERE id NOT IN (
+            SELECT equipo_id FROM salas_quirofano
+            WHERE equipo_id IS NOT NULL
+        )
+    """)
+    equipos_disponibles = cur.fetchall()
+
+    # Pacientes disponibles (no asignados a ninguna sala)
+    cur.execute("""
+        SELECT id, nombre_completo, cedula, edad, motivo_cirugia
+        FROM pacientes
+        WHERE id NOT IN (
+            SELECT paciente_id FROM salas_quirofano
+            WHERE paciente_id IS NOT NULL
+        )
+        AND estado_atencion = 'pendiente'
+    """)
+    pacientes_disponibles = cur.fetchall()
+
+    return render_template('salas.html',
+                           salas=salas,
+                           equipos_disponibles=equipos_disponibles,
+                           pacientes_disponibles=pacientes_disponibles)
 
 
 @app.route('/editar_sala/<int:id>', methods=['GET', 'POST'])
@@ -1169,6 +1224,22 @@ def parse_hora(hora_str):
             continue
     raise ValueError(f"Formato de hora no válido: {hora_str}")
 
+
+def format_date(d):
+    """Formato seguro para fechas devueltas por la DB."""
+    try:
+        return d.strftime('%Y-%m-%d')
+    except Exception:
+        return str(d)
+
+
+def format_time(t):
+    """Formato seguro para horas/time devueltas por la DB."""
+    try:
+        return t.strftime('%H:%M')
+    except Exception:
+        return str(t)
+
 def actualizar_quirofanos_mantenimiento():
     cur = mysql.connection.cursor()
     from datetime import datetime
@@ -1201,6 +1272,251 @@ def liberar_quirofano(sala_id):
     mysql.connection.commit()
     flash('Quirófano liberado y listo para usar')
     return redirect(url_for('dashboard'))
+
+# -------Reserva ----------------
+
+
+
+
+@app.route('/reservar_sala', methods=['POST'])
+def reservar_sala():
+    sala_id = request.form.get('sala_id')
+    fecha = request.form.get('fecha')
+    hora_inicio = request.form.get('hora_inicio')
+    hora_fin = request.form.get('hora_fin')
+    paciente_id = request.form.get('paciente_id')
+    equipo_id = request.form.get('equipo_id')
+
+    cur = mysql.connection.cursor()
+
+    # Validar solapamiento
+    cur.execute("""
+        SELECT COUNT(*) FROM reservas
+        WHERE sala_id = %s AND fecha = %s
+        AND (
+            (hora_inicio < %s AND hora_fin > %s) OR
+            (hora_inicio >= %s AND hora_inicio < %s) OR
+            (hora_fin > %s AND hora_fin <= %s)
+        )
+    """, (sala_id, fecha, hora_fin, hora_inicio, hora_inicio, hora_fin, hora_inicio, hora_fin))
+
+    conflictos = cur.fetchone()[0]
+    if conflictos > 0:
+        flash('Ya existe una reserva en ese quirófano en ese horario.')
+        return redirect(url_for('salas'))  # ✅ Este return es importante
+
+    # Validar que se haya seleccionado paciente y equipo
+    if not paciente_id or not equipo_id:
+        flash('Debes seleccionar un paciente y un equipo para la reserva.')
+        return redirect(url_for('salas'))
+
+    # Insertar nueva reserva
+    cur.execute("""
+        INSERT INTO reservas (sala_id, fecha, hora_inicio, hora_fin, paciente_id, equipo_id, estado)
+        VALUES (%s, %s, %s, %s, %s, %s, 'pendiente')
+    """, (sala_id, fecha, hora_inicio, hora_fin, paciente_id, equipo_id))
+    mysql.connection.commit()
+
+    flash('Reserva registrada correctamente.')
+    # Mostrar la lista de reservas para que el usuario/admin vea la nueva reserva
+    return redirect(url_for('reservas'))
+
+@app.route('/detalle_reserva/<int:id>')
+def detalle_reserva(id):
+    cur = mysql.connection.cursor()
+    cur.execute("""
+        SELECT r.fecha, r.hora_inicio, r.hora_fin,
+               p.nombre_completo, e.nombre_equipo
+        FROM reservas r
+        LEFT JOIN pacientes p ON r.paciente_id = p.id
+        LEFT JOIN equipos_medicos e ON r.equipo_id = e.id
+        WHERE r.id = %s
+    """, (id,))
+    r = cur.fetchone()
+    if r:
+        # Serialización local y defensiva (no depender de helpers externos)
+        def safe_date(x):
+            try:
+                return x.strftime('%Y-%m-%d')
+            except Exception:
+                return str(x)
+
+        def safe_time(x):
+            try:
+                return x.strftime('%H:%M')
+            except Exception:
+                return str(x)
+
+        return jsonify({
+            "fecha": safe_date(r[0]),
+            "inicio": safe_time(r[1]),
+            "fin": safe_time(r[2]),
+            "paciente": r[3] or 'Sin paciente',
+            "equipo": r[4] or 'Sin equipo'
+        })
+    return jsonify({"error": "Reserva no encontrada"}), 404
+
+
+@app.route('/editar_reserva/<int:id>', methods=['GET', 'POST'])
+def editar_reserva(id):
+    cur = mysql.connection.cursor()
+    if request.method == 'POST':
+        fecha = request.form.get('fecha')
+        hora_inicio = request.form.get('hora_inicio')
+        hora_fin = request.form.get('hora_fin')
+        paciente_id = request.form.get('paciente_id')
+        equipo_id = request.form.get('equipo_id')
+
+        cur.execute("""
+            UPDATE reservas
+            SET fecha=%s, hora_inicio=%s, hora_fin=%s,
+                paciente_id=%s, equipo_id=%s
+            WHERE id=%s
+        """, (fecha, hora_inicio, hora_fin, paciente_id, equipo_id, id))
+        mysql.connection.commit()
+        flash('Reserva actualizada correctamente.')
+        return redirect(url_for('reservas'))
+
+    cur.execute("""
+        SELECT r.*, p.nombre_completo, e.nombre_equipo
+        FROM reservas r
+        LEFT JOIN pacientes p ON r.paciente_id = p.id
+        LEFT JOIN equipos_medicos e ON r.equipo_id = e.id
+        WHERE r.id = %s
+    """, (id,))
+    reserva = cur.fetchone()
+    return render_template('editar_reserva.html', reserva=reserva)
+
+
+
+@app.route('/eliminar_reserva/<int:id>', methods=['POST'])
+def eliminar_reserva(id):
+    cur = mysql.connection.cursor()
+    cur.execute("DELETE FROM reservas WHERE id = %s", (id,))
+    mysql.connection.commit()
+    return '', 204
+
+@app.route('/reservas')
+def reservas():
+    cur = mysql.connection.cursor()
+    cur.execute("""
+        SELECT r.id, r.sala_id, r.fecha, r.hora_inicio, r.hora_fin,
+               r.estado, p.nombre_completo, e.nombre_equipo
+        FROM reservas r
+        LEFT JOIN pacientes p ON r.paciente_id = p.id
+        LEFT JOIN equipos_medicos e ON r.equipo_id = e.id
+        WHERE r.estado = 'pendiente'
+        ORDER BY r.fecha, r.hora_inicio
+    """)
+    rows = cur.fetchall()
+    # Normalizar tipos (fechas/horas -> strings) para que la plantilla y FullCalendar reciban valores predecibles
+    reservas_pendientes = []
+    for r in rows:
+        fecha = r[2].strftime('%Y-%m-%d') if hasattr(r[2], 'strftime') else str(r[2])
+        inicio = r[3].strftime('%H:%M') if hasattr(r[3], 'strftime') else str(r[3])
+        fin = r[4].strftime('%H:%M') if hasattr(r[4], 'strftime') else str(r[4])
+        reservas_pendientes.append((r[0], r[1], fecha, inicio, fin, r[5], r[6] or '', r[7] or ''))
+
+    return render_template('reservas.html', reservas_pendientes=reservas_pendientes)
+@app.route('/fechas_con_reservas')
+def fechas_con_reservas():
+    cur = mysql.connection.cursor()
+    cur.execute("""
+        SELECT DISTINCT fecha FROM reservas
+        WHERE estado = 'pendiente'
+    """)
+    fechas = cur.fetchall()
+    return jsonify([f[0].strftime('%Y-%m-%d') for f in fechas])
+
+
+@app.route('/reservas_por_fecha/<fecha>')
+def reservas_por_fecha(fecha):
+    cur = mysql.connection.cursor()
+    cur.execute("""
+    SELECT r.id, r.sala_id, r.fecha, r.hora_inicio, r.hora_fin,
+           r.estado, p.nombre_completo, e.nombre_equipo
+    FROM reservas r
+    LEFT JOIN pacientes p ON r.paciente_id = p.id
+    LEFT JOIN equipos_medicos e ON r.equipo_id = e.id
+    WHERE r.estado = 'pendiente' AND r.fecha = %s
+    ORDER BY r.hora_inicio
+""", (fecha,))
+
+    reservas = cur.fetchall()
+
+    nombres_quirofanos = ['F','G','H','I','J','A','B','C','D','E']
+
+    def time_to_str(t):
+        return t.strftime('%H:%M') if isinstance(t, time) else str(t)
+
+    return jsonify([
+        {
+            "id": r[0],
+            "sala": nombres_quirofanos[r[1] - 6],
+            "fecha": str(r[2]),
+            "inicio": time_to_str(r[3]),
+            "fin": time_to_str(r[4]),
+            "estado": r[5],
+            "paciente": r[6],
+            "equipo": r[7]
+        } for r in reservas
+    ])
+
+
+
+@app.route('/reservas_por_fecha/todas')
+def reservas_todas():
+    cur = mysql.connection.cursor()
+    cur.execute("""
+        SELECT r.id, r.sala_id, r.fecha, r.hora_inicio, r.hora_fin,
+               r.estado, p.nombre_completo, e.nombre_equipo
+        FROM reservas r
+        LEFT JOIN pacientes p ON r.paciente_id = p.id
+        LEFT JOIN equipos_medicos e ON r.equipo_id = e.id
+        WHERE r.estado = 'pendiente'
+        ORDER BY r.fecha, r.hora_inicio
+    """)
+    reservas = cur.fetchall()
+
+    nombres_quirofanos = ['F','G','H','I','J','A','B','C','D','E']
+
+    def time_to_str(t):
+        return t.strftime('%H:%M') if hasattr(t, 'strftime') else str(t)
+
+    return jsonify([
+        {
+            "id": r[0],
+            "sala": nombres_quirofanos[r[1] - 6],
+            "fecha": str(r[2]),
+            "inicio": time_to_str(r[3]),
+            "fin": time_to_str(r[4]),
+            "estado": r[5],
+            "paciente": r[6],
+            "equipo": r[7]
+        } for r in reservas
+    ])
+
+
+
+@app.route('/eventos_resumen')
+def eventos_resumen():
+    cur = mysql.connection.cursor()
+    cur.execute("""
+        SELECT r.id, r.fecha, p.nombre_completo
+        FROM reservas r
+        LEFT JOIN pacientes p ON r.paciente_id = p.id
+        WHERE r.estado = 'pendiente'
+    """)
+    eventos = cur.fetchall()
+    return jsonify([
+        {
+            "id": r[0],
+            "title": r[2] or "Sin paciente",
+            "start": r[1].strftime('%Y-%m-%d'),
+            "backgroundColor": "#0d6efd"
+        } for r in eventos
+    ])
+
 
 
 if __name__ == "__main__":

@@ -6,6 +6,15 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <!-- DataTables JS -->
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- Bootstrap JS (necesario para que el modal funcione) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 {% endblock %}
 {% block body %}
 <table id="tabla-salas" class="table table-hover">
@@ -21,31 +30,172 @@
       <th>Acciones</th>
     </tr>
   </thead>
-  <tbody>
-    {% set nombres = ['f','g','h','i','j','a','b','c','d','E'] %}
-    {% for sala in salas %}
-    {% set idx = loop.index0 %}
-    {% set nombre = nombres[idx] if idx < nombres|length else 'Q' ~ sala[0] %}
-    {% set estado = sala[1]|lower %}
-    <tr class="
-      {% if estado == 'libre' %}table-success
-      {% elif estado == 'en uso' %}table-danger
-      {% elif estado == 'mantenimiento' %}table-warning
-      {% endif %}">
-      <td>{{ nombre|upper }}</td>
-      <td>{{ sala[1]|capitalize }}</td>
-  <td>{{ sala[4] or 'Sin equipo' }}</td>
-  <td>{{ sala[6] or 'Sin médico' }}</td>
-  <td>{{ sala[5] or 'Sin paciente' }}</td>
-  <td>{{ sala[2] or '--:--' }}</td>
-  <td>{{ sala[3] or '--:--' }}</td>
-      <td>
-        <a href="{{ url_for('editar_sala', id=sala[0]) }}" class="btn btn-warning btn-sm">Editar</a>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
+<tbody>
+  {% set nombres = ['f','g','h','i','j','a','b','c','d','E'] %}
+  {% for sala in salas %}
+  {% set idx = loop.index0 %}
+  {% set nombre = nombres[idx] if idx < nombres|length else 'Q' ~ sala[0] %}
+  {% set estado = sala[1]|lower %}
+  {% set tiene_datos = sala[4] or sala[5] or sala[2] or sala[3] %}
+  <tr class="
+    {% if estado == 'libre' and not tiene_datos %}table-success
+    {% elif estado == 'libre' and tiene_datos %}table-info
+    {% elif estado == 'en uso' %}table-danger
+    {% elif estado == 'mantenimiento' %}table-warning
+    {% endif %}">
+    <td>{{ nombre|upper }}</td>
+    <td>{{ sala[1]|capitalize }}</td>
+    <td>{{ sala[4] or 'Sin equipo' }}</td>
+    <td>{{ sala[6] or 'Sin médico' }}</td>
+    <td>{{ sala[5] or 'Sin paciente' }}</td>
+    <td>{{ sala[2] or '--:--' }}</td>
+    <td>{{ sala[3] or '--:--' }}</td>
+    <td>
+      <a href="{{ url_for('editar_sala', id=sala[0]) }}" class="btn btn-warning btn-sm">Editar</a>
+      <button class="btn btn-primary btn-sm" onclick="abrirReserva({{ sala[0] }}, '{{ nombre|upper }}')">Reservar</button>
+    </td>
+  </tr>
+  {% endfor %}
+</tbody>
+
 </table>
+
+
+
+<div class="modal fade" id="modalReserva" tabindex="-1" aria-labelledby="modalReservaLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <form method="POST" action="{{ url_for('reservar_sala') }}">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalReservaLabel">Reservar Quirófano</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="sala_id" id="reserva-sala-id">
+          <input type="hidden" name="paciente_id" id="paciente_id" required>
+          <input type="hidden" name="equipo_id" id="equipo_id" required>
+
+          <p><strong>Quirófano:</strong> <span id="reserva-nombre"></span></p>
+
+          <!-- Datos generales -->
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <label for="fecha" class="form-label">📅 Fecha:</label>
+              <input type="date" name="fecha" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+              <label for="hora_inicio" class="form-label">🕒 Hora de inicio:</label>
+              <input type="time" name="hora_inicio" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+              <label for="hora_fin" class="form-label">🕓 Hora de fin:</label>
+              <input type="time" name="hora_fin" class="form-control" required>
+            </div>
+          </div>
+
+          <!-- Selección de paciente -->
+          <div class="mb-4">
+            <label class="form-label">👤 Buscar y seleccionar paciente</label>
+            <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+              <table id="tablaPacientesSelector" class="table table-bordered table-hover table-sm">
+                <thead class="table-light">
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Cédula</th>
+                    <th>Edad</th>
+                    <th>Motivo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for p in pacientes_disponibles %}
+                  <tr data-id="{{ p[0] }}">
+                    <td>{{ p[1] }}</td>
+                    <td>{{ p[2] }}</td>
+                    <td>{{ p[3] }}</td>
+                    <td>{{ p[4] }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Selección de equipo -->
+          <div class="mb-4">
+            <label class="form-label">🧬 Buscar y seleccionar equipo médico</label>
+            <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+              <table id="tablaEquiposSelector" class="table table-bordered table-hover table-sm">
+                <thead class="table-light">
+                  <tr><th>Nombre del Equipo</th></tr>
+                </thead>
+                <tbody>
+                  {% for eq in equipos_disponibles %}
+                  <tr data-id="{{ eq[0] }}">
+                    <td>{{ eq[1] }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-success">✅ Confirmar Reserva</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Script para abrir el modal y activar funcionalidad -->
+<script>
+function abrirReserva(salaId, nombre) {
+  document.getElementById('reserva-sala-id').value = salaId;
+  document.getElementById('reserva-nombre').textContent = nombre;
+
+  const modal = new bootstrap.Modal(document.getElementById('modalReserva'));
+  modal.show();
+
+  setTimeout(() => {
+    const pacienteInput = $('#paciente_id');
+    const equipoInput = $('#equipo_id');
+
+    if ($.fn.DataTable.isDataTable('#tablaPacientesSelector')) {
+      $('#tablaPacientesSelector').DataTable().destroy();
+    }
+    if ($.fn.DataTable.isDataTable('#tablaEquiposSelector')) {
+      $('#tablaEquiposSelector').DataTable().destroy();
+    }
+
+    const tablaPacientes = $('#tablaPacientesSelector').DataTable({
+      language: { url: "//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json" },
+      pageLength: 5
+    });
+
+    const tablaEquipos = $('#tablaEquiposSelector').DataTable({
+      language: { url: "//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json" },
+      pageLength: 5
+    });
+
+    $('#tablaPacientesSelector tbody').off('click').on('click', 'tr', function () {
+      tablaPacientes.$('tr.table-primary').removeClass('table-primary');
+      $(this).addClass('table-primary');
+      pacienteInput.val($(this).data('id'));
+    });
+
+    $('#tablaEquiposSelector tbody').off('click').on('click', 'tr', function () {
+      tablaEquipos.$('tr.table-primary').removeClass('table-primary');
+      $(this).addClass('table-primary');
+      equipoInput.val($(this).data('id'));
+    });
+  }, 200);
+}
+</script>
+
+
+
 <script>
 $(function() {
   $('#tabla-salas').DataTable({

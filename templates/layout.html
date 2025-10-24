@@ -90,12 +90,16 @@
             <li class="nav-item">
               <a class="nav-link" href="{{ url_for('historial') }}">Historial</a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('reservas') }}">Reservas</a>
+            </li>
 
             {% if session.get('rol') == 'administrador' %}
             <li class="nav-item">
               <a class="nav-link" href="{{ url_for('pending_users') }}">Usuarios</a>
             </li>
             {% endif %}
+            
 
           </ul>
           <span class="navbar-text">
