@@ -1,0 +1,18 @@
+./setup/mysqlclient-2.2.7-cp38-cp38-win_amd64.whl--find-links wheels
+
+Flask>=2.0,<3.0flask_mysqldb
+
+flask-mysqldb>=1.0.1Flask
+
+pyotp>=2.8.0gunicorn
+
+qrcode>=7.3mysql-connector-python
+
+Pillow>=9.0.0pyotp
+
+# opcionales / utilidadesqrcode
+
+python-dotenv>=0.21.0
+# Si usas herramientas dev, descomentar:
+# pytest
+# black
