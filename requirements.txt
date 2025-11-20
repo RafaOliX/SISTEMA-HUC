@@ -13,6 +13,10 @@ Pillow>=9.0.0pyotp
 # opcionales / utilidadesqrcode
 
 python-dotenv>=0.21.0
+# opcionales / utilidadesqrcode
 # Si usas herramientas dev, descomentar:
 # pytest
 # black
+pandas>=1.5.0
+openpyxl>=3.0.0
+reportlab>=3.6.0

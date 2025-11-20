@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, url_for, redirect, flash, session, jsonify
+from flask import Flask, render_template, request, url_for, redirect, flash, session, jsonify, send_file
 from flask_mysqldb import MySQL
 import pyotp
 import qrcode
@@ -8,8 +8,59 @@ import os
 from werkzeug.utils import secure_filename
 
 from datetime import time
+from io import BytesIO
+import pandas as pd
+
+# reportlab para generar PDF sencillo
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image, Spacer
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+import hashlib
+import reportlab.pdfbase.pdfdoc as pdfdoc
 
 app = Flask(__name__)
+
+# Compatibility shim: some Python/Windows builds expose hashlib.openssl_md5
+# which doesn't accept the keyword argument `usedforsecurity` that
+# reportlab sometimes passes. Provide a wrapper that ignores that kwarg
+# and falls back to hashlib.md5 to avoid TypeError during PDF generation.
+try:
+    if hasattr(hashlib, 'openssl_md5'):
+        _orig_openssl_md5 = getattr(hashlib, 'openssl_md5')
+        def _openssl_md5_compat(data=b'', *args, **kwargs):
+            kwargs.pop('usedforsecurity', None)
+            try:
+                return _orig_openssl_md5(data)
+            except Exception:
+                return hashlib.md5(data)
+        setattr(hashlib, 'openssl_md5', _openssl_md5_compat)
+    else:
+        # create attribute so reportlab calls succeed
+        def _openssl_md5_compat(data=b'', *args, **kwargs):
+            kwargs.pop('usedforsecurity', None)
+            return hashlib.md5(data)
+        setattr(hashlib, 'openssl_md5', _openssl_md5_compat)
+except Exception:
+    pass
+
+# Additionally patch common ReportLab utils namespace so calls that pass
+# usedforsecurity do not fail. Some reportlab versions call md5 via
+# reportlab.lib.utils.openssl_md5 or reportlab.lib.utils.md5.
+try:
+    import reportlab.lib.utils as rl_utils
+    def _rl_md5_compat(data=b'', *args, **kwargs):
+        kwargs.pop('usedforsecurity', None)
+        try:
+            return hashlib.md5(data)
+        except Exception:
+            return hashlib.md5(data)
+    # assign compatibility functions into reportlab utils namespace
+    setattr(rl_utils, 'openssl_md5', _rl_md5_compat)
+    setattr(rl_utils, 'md5', _rl_md5_compat)
+except Exception:
+    # if reportlab not installed at import time, ignore; we also patch in-place in export
+    pass
 
 # Configuración de la base de datos
 app.config['MYSQL_HOST'] = 'localhost'
@@ -179,10 +230,15 @@ def register():
                 # Si la columna 'estado' no existe (esquema antiguo), insertar sin ella
                 cur.execute(
                     "INSERT INTO usuarios (nombre_usuario, contraseña, rol, `2AF`) VALUES (%s, %s, %s, %s)",
+
                     (nombre_usuario, contraseña, rol, secreto)
                 )
             mysql.connection.commit()
             flash('Registro exitoso. Escanee el QR con Google Authenticator.')
+            try:
+                registrar_historial('usuario', f'Registro de usuario {nombre_usuario}', usuario=nombre_usuario)
+            except Exception:
+                pass
             return render_template('show_qr.html', gmail=nombre_usuario)
         except Exception as e:
             print("Error en registro:", e)
@@ -234,6 +290,10 @@ def approve_user(username):
 
     mysql.connection.commit()
     flash(f'Usuario {username} aprobado como {rol}.')
+    try:
+        registrar_historial('usuario', f'Usuario {username} aprobado como {rol}', usuario=session.get('nombre_usuario') or 'admin')
+    except Exception:
+        pass
     return redirect(url_for('pending_users'))
 
 
@@ -246,6 +306,10 @@ def reject_user(username):
     cur.execute("DELETE FROM usuarios WHERE nombre_usuario=%s", (username,))
     mysql.connection.commit()
     flash(f'Usuario {username} rechazado y eliminado.')
+    try:
+        registrar_historial('usuario', f'Usuario {username} rechazado y eliminado', usuario=session.get('nombre_usuario') or 'admin')
+    except Exception:
+        pass
     return redirect(url_for('pending_users'))
 
 @app.route('/change_password/<username>', methods=['GET', 'POST'])
@@ -259,6 +323,10 @@ def change_password(username):
         cur.execute("UPDATE usuarios SET contraseña=%s WHERE nombre_usuario=%s", (nueva, username))
         mysql.connection.commit()
         flash(f'Contraseña actualizada para {username}.')
+        try:
+            registrar_historial('usuario', f'Contraseña cambiada para {username}', usuario=session.get('nombre_usuario') or 'admin')
+        except Exception:
+            pass
         return redirect(url_for('usuarios'))
     return render_template('cambiar_contraseña.html', username=username)
 
@@ -272,6 +340,10 @@ def change_role(username):
     cur.execute("UPDATE usuarios SET rol=%s WHERE nombre_usuario=%s", (nuevo_rol, username))
     mysql.connection.commit()
     flash(f'Rol actualizado para {username}.')
+    try:
+        registrar_historial('usuario', f'Rol cambiado a {nuevo_rol} para {username}', usuario=session.get('nombre_usuario') or 'admin')
+    except Exception:
+        pass
     return redirect(url_for('usuarios'))
 
 
@@ -518,6 +590,13 @@ def add_medico():
         VALUES (%s, %s, %s, %s, %s, %s)
     """, (nombre, especialidad, telefono_completo, cedula, correo, nombre_foto))
     mysql.connection.commit()
+    # Registrar en historial: creación de médico
+    try:
+        usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+        medico_id = cursor.lastrowid
+        registrar_historial('medico_create', f'Médico creado id={medico_id} nombre={nombre}', usuario=usuario, medico_id=medico_id)
+    except Exception:
+        pass
     return redirect(url_for('medico'))
 
 # Actualizar médico
@@ -562,6 +641,12 @@ def update_medico(id):
         """, (nombre, especialidad, correo, telefono, cedula, id))
 
     mysql.connection.commit()
+    # Registrar en historial: actualización de médico
+    try:
+        usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+        registrar_historial('medico_update', f'Médico actualizado id={id} nombre={nombre}', usuario=usuario, medico_id=id)
+    except Exception:
+        pass
     flash('Médico actualizado correctamente.')
     return redirect(url_for('medico'))
 
@@ -574,11 +659,43 @@ def delete_medico(id):
         flash('Acceso solo para administradores.')
         return redirect(url_for('dashboard'))
     cur = mysql.connection.cursor()
+    # Primero obtener el nombre del médico (para dejar rastro legible en el historial)
+    cur.execute("SELECT nombre FROM medicos WHERE id = %s", (id,))
+    row = cur.fetchone()
+    nombre_medico = row[0] if row else None
+
     # Desasignar médico de todos los equipos (poniendo medico_id a NULL)
     cur.execute("UPDATE equipos_medicos SET medico_id = NULL WHERE medico_id = %s", (id,))
-    # Eliminar médico
+
+    # Antes de borrar el médico, limpiar referencias en historial_uso para evitar
+    # violaciones de integridad referencial. Conservamos la descripción y añadimos
+    # un sufijo que deja constancia del nombre/ID borrado.
+    try:
+        note = f' (medico eliminado id={id}' + (f' nombre={nombre_medico}' if nombre_medico else '') + ')'
+        # Concatenar nota a la descripción y poner medico_id a NULL
+        cur.execute(
+            """
+            UPDATE historial_uso
+            SET descripcion = CONCAT(COALESCE(descripcion, ''), %s), medico_id = NULL
+            WHERE medico_id = %s
+            """,
+            (note, id)
+        )
+    except Exception as e:
+        # Si falla actualizar el historial, no detener la eliminación; imprimimos para depuración
+        print('Advertencia: no se pudo actualizar historial_uso antes de borrar médico:', e)
+
+    # Ahora sí eliminar al médico
     cur.execute("DELETE FROM medicos WHERE id = %s", (id,))
     mysql.connection.commit()
+
+    # Registrar en historial: eliminación de médico (registramos en historial_uso la acción)
+    try:
+        usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+        registrar_historial('medico_delete', f'Médico eliminado id={id} nombre={nombre_medico or "(desconocido)"}', usuario=usuario)
+    except Exception:
+        pass
+
     flash('Médico desasignado de todos los equipos y eliminado correctamente.')
     return redirect(url_for('medico'))
 
@@ -615,6 +732,13 @@ def add_enfermero():
         VALUES (%s, %s, %s, %s, %s, %s)
     """, (nombre, tipo, cedula, correo, telefono, nombre_foto))
     mysql.connection.commit()
+    # Registrar en historial: creación de enfermero
+    try:
+        usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+        enfermero_id = cur.lastrowid
+        registrar_historial('enfermero_create', f'Enfermero creado id={enfermero_id} nombre={nombre}', usuario=usuario)
+    except Exception:
+        pass
     flash('Enfermero agregado correctamente')
     return redirect(url_for('medico') + '#enfermeros')
 
@@ -663,6 +787,12 @@ def update_enfermero(id):
         """, (nombre, tipo, correo, telefono, cedula, id))
 
     mysql.connection.commit()
+    # Registrar en historial: actualización de enfermero
+    try:
+        usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+        registrar_historial('enfermero_update', f'Enfermero actualizado id={id} nombre={nombre}', usuario=usuario)
+    except Exception:
+        pass
     flash('Enfermero actualizado correctamente.')
     return redirect(url_for('medico') + '#enfermeros')
 
@@ -679,6 +809,12 @@ def delete_enfermero(id):
     # Eliminar enfermero
     cur.execute("DELETE FROM enfermeros WHERE id = %s", (id,))
     mysql.connection.commit()
+    # Registrar en historial: eliminación de enfermero
+    try:
+        usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+        registrar_historial('enfermero_delete', f'Enfermero eliminado id={id}', usuario=usuario)
+    except Exception:
+        pass
     flash('Enfermero desasignado de todos los equipos y eliminado correctamente.')
     return redirect(url_for('medico') + '#enfermeros')
 
@@ -706,6 +842,12 @@ def add_equipo():
             (equipo_id, enf_id)
         )
     mysql.connection.commit()
+    # Registrar en historial: creación de equipo médico
+    try:
+        usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+        registrar_historial('equipo_create', f'Equipo creado id={equipo_id} nombre={nombre_equipo} medico_id={medico_id}', usuario=usuario)
+    except Exception:
+        pass
     flash('Equipo médico agregado correctamente')
     return redirect(url_for('medico') + '#equipos')
 
@@ -778,6 +920,12 @@ def editar_equipo(equipo_id):
             cur.execute("INSERT INTO equipo_enfermeros (equipo_id, enfermero_id) VALUES (%s, %s)",
                         (equipo_id, enf_id))
         mysql.connection.commit()
+        # Registrar en historial: edición de equipo
+        try:
+            usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+            registrar_historial('equipo_update', f'Equipo actualizado id={equipo_id} nombre={nombre_equipo}', usuario=usuario)
+        except Exception:
+            pass
         flash('Equipo actualizado correctamente.')
         return redirect(url_for('medico') + '#equipos')
 
@@ -841,6 +989,12 @@ def delete_equipo(equipo_id):
     cur.execute("DELETE FROM equipos_medicos WHERE id = %s", (equipo_id,))
 
     mysql.connection.commit()
+    # Registrar en historial: eliminación de equipo
+    try:
+        usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+        registrar_historial('equipo_delete', f'Equipo eliminado id={equipo_id}', usuario=usuario)
+    except Exception:
+        pass
     flash('Equipo médico eliminado correctamente.')
     return redirect(url_for('medico') + '#equipos')
 
@@ -929,6 +1083,13 @@ def add_paciente():
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (nombre_completo, cedula, telefono, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia, departamento))
         mysql.connection.commit()
+        # Registrar en historial: creación de paciente
+        try:
+            usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+            paciente_id = cur.lastrowid
+            registrar_historial('paciente_create', f'Paciente creado id={paciente_id} nombre={nombre_completo}', usuario=usuario)
+        except Exception:
+            pass
         flash('Paciente agregado exitosamente')
         return redirect(url_for('pacientes'))
 
@@ -969,6 +1130,12 @@ def editar_paciente(id):
         """, (nombre_completo, cedula, telefono, edad, fecha_nacimiento, tipo_sangre, motivo_cirugia, departamento, id))
 
         mysql.connection.commit()
+        # Registrar en historial: actualización de paciente
+        try:
+            usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+            registrar_historial('paciente_update', f'Paciente actualizado id={id} nombre={nombre_completo}', usuario=usuario)
+        except Exception:
+            pass
         flash('Paciente actualizado exitosamente')
         return redirect(url_for('pacientes'))
     
@@ -1011,9 +1178,18 @@ def eliminar_paciente(id):
     
     cur = mysql.connection.cursor()
     try:
-        # Eliminar el paciente de la base de datos
+        # Obtener nombre para registro (si existe) y eliminar el paciente
+        cur.execute("SELECT nombre_completo FROM pacientes WHERE id = %s", (id,))
+        row = cur.fetchone()
+        nombre_paciente = row[0] if row else None
         cur.execute("DELETE FROM pacientes WHERE id = %s", (id,))
         mysql.connection.commit()
+        # Registrar en historial: eliminación de paciente
+        try:
+            usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+            registrar_historial('paciente_delete', f'Paciente eliminado id={id} nombre={nombre_paciente or "(desconocido)"}', usuario=usuario)
+        except Exception:
+            pass
         flash('Paciente eliminado correctamente')
     except Exception as e:
         flash('Error al eliminar el paciente')
@@ -1027,26 +1203,35 @@ def historial():
         flash('Debes iniciar sesión primero')
         return redirect(url_for('index'))
 
+    # Filtros desde la UI
     tipo = request.args.get('tipo', '')
     fecha_inicio = request.args.get('inicio', '')
     fecha_fin = request.args.get('fin', '')
+    q = request.args.get('q', '').strip()
+    usuario_filter = request.args.get('usuario', '').strip()
 
-    cur = mysql.connection.cursor()
-    query = "SELECT * FROM historial WHERE 1=1"
-    params = []
+    # Columnas seleccionadas por el usuario (comma-separated)
+    # Support multiple 'cols' parameters (checkboxes) or a single comma-separated value
+    cols_list = request.args.getlist('cols')
+    cols_param = ''
+    if cols_list:
+        cols_param = ','.join(cols_list)
+    else:
+        cols_param = request.args.get('cols', '')
+    registros, all_cols = fetch_historial(tipo, fecha_inicio, fecha_fin, q=q, usuario_filter=usuario_filter)
 
-    if tipo:
-        query += " AND tipo = %s"
-        params.append(tipo)
-    if fecha_inicio and fecha_fin:
-        query += " AND fecha BETWEEN %s AND %s"
-        params.extend([fecha_inicio, fecha_fin])
+    # Determine which columns to show: if user provided a selection, use it; otherwise pick sensible defaults
+    if cols_param:
+        selected = [c for c in cols_param.split(',') if c in all_cols]
+    else:
+        # sensible default ordering
+        preferred = ['fecha', 'tipo', 'entidad_nombre', 'accion', 'descripcion', 'usuario', 'medico_nombre', 'sala_id', 'duracion']
+        selected = [c for c in preferred if c in all_cols]
+        # if preferred is empty, show all
+        if not selected:
+            selected = all_cols
 
-    query += " ORDER BY fecha DESC"
-    cur.execute(query, params)
-    registros = cur.fetchall()
-
-    return render_template('historial.html', registros=registros, tipo=tipo)
+    return render_template('historial.html', registros=registros, tipo=tipo, columns=all_cols, selected_columns=selected, filters={'inicio': fecha_inicio, 'fin': fecha_fin, 'q': q, 'usuario': usuario_filter})
 
 
 @app.route('/cancelar_paciente/<int:paciente_id>')
@@ -1258,6 +1443,134 @@ def actualizar_quirofanos_mantenimiento():
             continue
     mysql.connection.commit()
 
+
+def registrar_historial(tipo, descripcion, usuario=None, sala_id=None, medico_id=None, duracion=None):
+    """Inserta un registro en la tabla `historial_uso`.
+    Nota: la tabla existente en el proyecto tiene columnas (sala_id, medico_id, fecha_uso, duracion, descripcion).
+    Para no modificar el esquema, concatenamos tipo/usuario dentro de la descripción.
+    """
+    try:
+        cur = mysql.connection.cursor()
+        usuario_str = f" usuario={usuario}" if usuario else ""
+        full_desc = f"[{tipo}] {descripcion}{usuario_str}"
+        # Ensure duracion is never NULL to satisfy DB NOT NULL constraint
+        duracion_val = duracion if duracion is not None else ''
+        cur.execute(
+            """
+            INSERT INTO historial_uso (sala_id, medico_id, fecha_uso, duracion, descripcion)
+            VALUES (%s, %s, NOW(), %s, %s)
+            """,
+            (sala_id, medico_id, duracion_val, full_desc),
+        )
+        mysql.connection.commit()
+    except Exception as e:
+        # No detener la aplicación por fallos en el logging; imprimimos para depuración
+        print("Error registrando historial:", e)
+
+
+def _serialize_value(v):
+    """Serialize DB values to friendly strings for templates/exports."""
+    if v is None:
+        return ''
+    try:
+        # datetime or date or time
+        if hasattr(v, 'year') and hasattr(v, 'month') and hasattr(v, 'day'):
+            # it's a date or datetime
+            if hasattr(v, 'hour'):
+                return v.strftime('%Y-%m-%d %H:%M')
+            return v.strftime('%Y-%m-%d')
+        if hasattr(v, 'hour') and hasattr(v, 'minute'):
+            return v.strftime('%H:%M')
+    except Exception:
+        pass
+    try:
+        return str(v)
+    except Exception:
+        return ''
+
+
+def fetch_historial(tipo='', fecha_inicio='', fecha_fin='', q='', usuario_filter=''):
+    """Retorna filas y columnas uniendo `historial` y `historial_uso`.
+    Normaliza y enriquece columnas: id, tipo, entidad_id, entidad_nombre, accion, descripcion, usuario, fecha, sala_id, medico_id, medico_nombre, duracion
+    Acepta filtros: tipo, fecha_inicio, fecha_fin, q (texto búsqueda), usuario_filter
+    Devuelve: (rows_as_list_of_dicts, cols_list)
+    """
+    cur = mysql.connection.cursor()
+    # SELECT para historial general con joins a tablas para obtener nombres
+    sel1 = (
+        "SELECT h.id, h.tipo, h.entidad_id, "
+        "COALESCE(p.nombre_completo, m.nombre, en.nombre, CONCAT('Sala ', h.entidad_id)) AS entidad_nombre, "
+        "h.accion, h.descripcion, h.usuario, h.fecha, NULL AS sala_id, NULL AS medico_id, NULL AS medico_nombre, NULL AS duracion "
+        "FROM historial h "
+        "LEFT JOIN pacientes p ON h.tipo='paciente' AND h.entidad_id = p.id "
+        "LEFT JOIN medicos m ON h.tipo='medico' AND h.entidad_id = m.id "
+        "LEFT JOIN enfermeros en ON h.tipo='enfermero' AND h.entidad_id = en.id "
+        "WHERE 1=1"
+    )
+    params1 = []
+
+    # SELECT para historial_uso con joins a medicos y salas
+    sel2 = (
+        "SELECT u.id, 'uso' AS tipo, u.sala_id AS entidad_id, "
+        "COALESCE(CONCAT('Sala ', u.sala_id), s.id) AS entidad_nombre, "
+        "NULL AS accion, u.descripcion, '' AS usuario, u.fecha_uso AS fecha, u.sala_id, u.medico_id, COALESCE(m.nombre, '') AS medico_nombre, u.duracion "
+        "FROM historial_uso u "
+        "LEFT JOIN medicos m ON u.medico_id = m.id "
+        "LEFT JOIN salas_quirofano s ON u.sala_id = s.id "
+        "WHERE 1=1"
+    )
+    params2 = []
+
+    # tipo filter
+    if tipo:
+        if tipo == 'uso' or tipo.lower() == 'uso':
+            # Only use historial_uso
+            sel1 += " AND 0=1"
+        else:
+            sel1 += " AND h.tipo = %s"
+            params1.append(tipo)
+            sel2 += " AND 0=1"
+
+    # fecha range
+    if fecha_inicio and fecha_fin:
+        sel1 += " AND (h.fecha BETWEEN %s AND %s)"
+        sel2 += " AND (u.fecha_uso BETWEEN %s AND %s)"
+        params1.extend([fecha_inicio + ' 00:00:00', fecha_fin + ' 23:59:59'])
+        params2.extend([fecha_inicio + ' 00:00:00', fecha_fin + ' 23:59:59'])
+
+    # texto búsqueda q (en descripcion/accion/usuario)
+    if q:
+        like = f"%{q}%"
+        sel1 += " AND (h.descripcion LIKE %s OR h.accion LIKE %s OR h.usuario LIKE %s)"
+        params1.extend([like, like, like])
+        sel2 += " AND (u.descripcion LIKE %s)"
+        params2.append(like)
+
+    # usuario filter exact or partial
+    if usuario_filter:
+        likeu = f"%{usuario_filter}%"
+        sel1 += " AND (h.usuario LIKE %s)"
+        params1.append(likeu)
+
+    # Construir query final
+    query = f"({sel1}) UNION ALL ({sel2}) ORDER BY fecha DESC"
+    params = params1 + params2
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+    cols = [d[0] for d in cur.description] if cur.description else []
+
+    # Convertir a lista de dicts con serialización
+    rows_serial = []
+    for row in rows:
+        item = {}
+        for i, c in enumerate(cols):
+            item[c] = _serialize_value(row[i])
+        rows_serial.append(item)
+
+    return rows_serial, cols
+
+
 @app.route('/liberar_quirofano/<int:sala_id>')
 def liberar_quirofano(sala_id):
     if 'usuario_autenticado' not in session:
@@ -1317,6 +1630,14 @@ def reservar_sala():
     """, (sala_id, fecha, hora_inicio, hora_fin, paciente_id, equipo_id))
     mysql.connection.commit()
 
+    # Registrar en historial de uso (guardamos tipo/usuario dentro de la descripción para no cambiar esquema)
+    usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+    try:
+        registrar_historial('reserva', f'Reserva creada sala={sala_id} fecha={fecha} {hora_inicio}-{hora_fin} paciente={paciente_id} equipo={equipo_id}', usuario=usuario, sala_id=sala_id, medico_id=equipo_id)
+    except Exception:
+        # No interrumpir por errores de logging
+        pass
+
     flash('Reserva registrada correctamente.')
     # Mostrar la lista de reservas para que el usuario/admin vea la nueva reserva
     return redirect(url_for('reservas'))
@@ -1326,7 +1647,7 @@ def detalle_reserva(id):
     cur = mysql.connection.cursor()
     cur.execute("""
         SELECT r.fecha, r.hora_inicio, r.hora_fin,
-               p.nombre_completo, e.nombre_equipo
+               p.id AS paciente_id, p.nombre_completo, e.id AS equipo_id, e.nombre_equipo
         FROM reservas r
         LEFT JOIN pacientes p ON r.paciente_id = p.id
         LEFT JOIN equipos_medicos e ON r.equipo_id = e.id
@@ -1347,12 +1668,15 @@ def detalle_reserva(id):
             except Exception:
                 return str(x)
 
+        # r layout: (fecha, hora_inicio, hora_fin, paciente_id, nombre_completo, equipo_id, nombre_equipo)
         return jsonify({
             "fecha": safe_date(r[0]),
             "inicio": safe_time(r[1]),
             "fin": safe_time(r[2]),
-            "paciente": r[3] or 'Sin paciente',
-            "equipo": r[4] or 'Sin equipo'
+            "paciente_id": r[3],
+            "paciente": r[4] or 'Sin paciente',
+            "equipo_id": r[5],
+            "equipo": r[6] or 'Sin equipo'
         })
     return jsonify({"error": "Reserva no encontrada"}), 404
 
@@ -1367,6 +1691,17 @@ def editar_reserva(id):
         paciente_id = request.form.get('paciente_id')
         equipo_id = request.form.get('equipo_id')
 
+        # Si alguno de los campos paciente_id o equipo_id no viene en el formulario
+        # preservamos el valor existente en la BBDD para evitar sobrescribir con NULL/''.
+        cur.execute("SELECT paciente_id, equipo_id FROM reservas WHERE id=%s", (id,))
+        existing = cur.fetchone()
+        if existing:
+            existing_paciente, existing_equipo = existing[0], existing[1]
+            if not paciente_id and existing_paciente is not None:
+                paciente_id = existing_paciente
+            if not equipo_id and existing_equipo is not None:
+                equipo_id = existing_equipo
+
         cur.execute("""
             UPDATE reservas
             SET fecha=%s, hora_inicio=%s, hora_fin=%s,
@@ -1374,6 +1709,14 @@ def editar_reserva(id):
             WHERE id=%s
         """, (fecha, hora_inicio, hora_fin, paciente_id, equipo_id, id))
         mysql.connection.commit()
+        # Registrar en historial: actualización de reserva
+        try:
+            usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+            sala_form = request.form.get('sala_id')
+            sala_reg = sala_form if sala_form else 'desconocida'
+            registrar_historial('reserva_update', f'Reserva actualizada id={id} sala={sala_reg} fecha={fecha} {hora_inicio}-{hora_fin} paciente={paciente_id} equipo={equipo_id}', usuario=usuario, sala_id=(sala_form if sala_form else None))
+        except Exception:
+            pass
         flash('Reserva actualizada correctamente.')
         return redirect(url_for('reservas'))
 
@@ -1388,12 +1731,72 @@ def editar_reserva(id):
     return render_template('editar_reserva.html', reserva=reserva)
 
 
+# Compatibilidad: aceptar POST desde formularios antiguos que apuntan a /actualizar_reserva
+@app.route('/actualizar_reserva', methods=['POST'])
+def actualizar_reserva():
+    """Compat layer: acepta id en form (name='id') y actualiza la reserva.
+    Esto permite que formularios antiguos que postearon a /actualizar_reserva sigan funcionando.
+    """
+    cur = mysql.connection.cursor()
+    reserva_id = request.form.get('id')
+    if not reserva_id:
+        flash('Id de reserva faltante')
+        return redirect(url_for('reservas'))
+
+    fecha = request.form.get('fecha')
+    hora_inicio = request.form.get('hora_inicio')
+    hora_fin = request.form.get('hora_fin')
+    paciente_id = request.form.get('paciente_id')
+    equipo_id = request.form.get('equipo_id')
+
+    # Defensive: preserve existing paciente_id/equipo_id when form omits them
+    cur.execute("SELECT paciente_id, equipo_id FROM reservas WHERE id=%s", (reserva_id,))
+    existing = cur.fetchone()
+    if existing:
+        existing_paciente, existing_equipo = existing[0], existing[1]
+        if not paciente_id and existing_paciente is not None:
+            paciente_id = existing_paciente
+        if not equipo_id and existing_equipo is not None:
+            equipo_id = existing_equipo
+
+    cur.execute("""
+        UPDATE reservas
+        SET fecha=%s, hora_inicio=%s, hora_fin=%s, paciente_id=%s, equipo_id=%s
+        WHERE id=%s
+    """, (fecha, hora_inicio, hora_fin, paciente_id, equipo_id, reserva_id))
+    mysql.connection.commit()
+
+    # Registrar en historial: actualización de reserva
+    try:
+        usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+        sala_form = request.form.get('sala_id')
+        sala_reg = sala_form if sala_form else 'desconocida'
+        registrar_historial('reserva_update', f'Reserva actualizada id={reserva_id} sala={sala_reg} fecha={fecha} {hora_inicio}-{hora_fin} paciente={paciente_id} equipo={equipo_id}', usuario=usuario, sala_id=(sala_form if sala_form else None))
+    except Exception:
+        pass
+
+    flash('Reserva actualizada correctamente.')
+    return redirect(url_for('reservas'))
+
+
 
 @app.route('/eliminar_reserva/<int:id>', methods=['POST'])
 def eliminar_reserva(id):
     cur = mysql.connection.cursor()
+    # Obtener datos antes de eliminar para registrar en historial
+    cur.execute("SELECT sala_id, fecha, hora_inicio, hora_fin, paciente_id, equipo_id FROM reservas WHERE id = %s", (id,))
+    row = cur.fetchone()
     cur.execute("DELETE FROM reservas WHERE id = %s", (id,))
     mysql.connection.commit()
+    try:
+        usuario = session.get('nombre_usuario') or session.get('usuario_autenticado') or session.get('usuario') or 'anon'
+        if row:
+            sala_id, fecha, hora_inicio, hora_fin, paciente_id, equipo_id = row
+            registrar_historial('reserva_delete', f'Reserva eliminada id={id} sala={sala_id} fecha={fecha} {hora_inicio}-{hora_fin} paciente={paciente_id} equipo={equipo_id}', usuario=usuario, sala_id=sala_id)
+        else:
+            registrar_historial('reserva_delete', f'Reserva eliminada id={id}', usuario=usuario)
+    except Exception:
+        pass
     return '', 204
 
 @app.route('/reservas')
@@ -1517,6 +1920,183 @@ def eventos_resumen():
         } for r in eventos
     ])
 
+
+
+@app.route('/historial/print')
+def historial_print():
+    if 'usuario_autenticado' not in session:
+        flash('Acceso requerido')
+        return redirect(url_for('index'))
+    tipo = request.args.get('tipo', '')
+    fecha_inicio = request.args.get('inicio', '')
+    fecha_fin = request.args.get('fin', '')
+    q = request.args.get('q', '')
+    usuario_filter = request.args.get('usuario', '')
+    registros, cols = fetch_historial(tipo, fecha_inicio, fecha_fin, q=q, usuario_filter=usuario_filter)
+    # sensible default columns for print
+    preferred = ['fecha', 'tipo', 'entidad_nombre', 'accion', 'descripcion', 'usuario', 'medico_nombre', 'sala_id', 'duracion']
+    selected = [c for c in preferred if c in cols] or cols
+    return render_template('historial.html', registros=registros, tipo=tipo, printable=True, columns=cols, selected_columns=selected, filters={'inicio': fecha_inicio, 'fin': fecha_fin, 'q': q, 'usuario': usuario_filter})
+
+
+@app.route('/historial/export/excel')
+def historial_export_excel():
+    if 'usuario_autenticado' not in session:
+        flash('Acceso requerido')
+        return redirect(url_for('index'))
+    # Export the same data shown in /historial (now unified) so CSV/Excel matches the UI
+    tipo = request.args.get('tipo', '')
+    fecha_inicio = request.args.get('inicio', '')
+    fecha_fin = request.args.get('fin', '')
+    rows, cols = fetch_historial(tipo, fecha_inicio, fecha_fin)
+    try:
+        # rows == list of dicts; let pandas infer columns when possible
+        df = pd.DataFrame(rows) if rows else None
+        # reindex columns to keep consistent order if cols provided
+        if df is not None and cols:
+            df = df.reindex(columns=cols)
+    except Exception:
+        df = None
+    output = BytesIO()
+    if df is not None:
+        try:
+            df.to_excel(output, index=False, engine='openpyxl')
+        except Exception:
+            output.write(df.to_csv(index=False).encode('utf-8'))
+    else:
+        # Fallback simple CSV if pandas isn't available; rows are dicts
+        header = cols if cols else (list(rows[0].keys()) if rows else [])
+        output.write((','.join(header) + '\n').encode('utf-8'))
+        for r in rows:
+            line = ','.join([str(r.get(c, '')) for c in header]) + '\n'
+            output.write(line.encode('utf-8'))
+    output.seek(0)
+    registrar_historial('export', 'Export historial a excel', usuario=session.get('nombre_usuario') or 'anon')
+    return send_file(output, as_attachment=True, download_name='historial.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@app.route('/historial/export/pdf')
+def historial_export_pdf():
+    if 'usuario_autenticado' not in session:
+        flash('Acceso requerido')
+        return redirect(url_for('index'))
+    # Export the same data shown in /historial (now unified) so PDF matches the UI
+    tipo = request.args.get('tipo', '')
+    fecha_inicio = request.args.get('inicio', '')
+    fecha_fin = request.args.get('fin', '')
+    rows, cols = fetch_historial(tipo, fecha_inicio, fecha_fin)
+
+    # Monkeypatch for reportlab/OpenSSL md5 signature incompatibility on some Windows/Python combinations
+    # reportlab.pdfbase.pdfdoc.md5 may call openssl_md5 with keyword arg 'usedforsecurity' which some builds don't accept.
+    try:
+        def _md5_compat(*args, **kwargs):
+            # remove unsupported kw and call hashlib.md5
+            kwargs.pop('usedforsecurity', None)
+            return hashlib.md5(*args, **kwargs)
+        pdfdoc.md5 = _md5_compat
+    except Exception:
+        pass
+
+    buffer = BytesIO()
+    # Use slightly larger top margin to place header
+    doc = SimpleDocTemplate(buffer, pagesize=letter, leftMargin=36, rightMargin=36, topMargin=72, bottomMargin=36)
+
+    styles = getSampleStyleSheet()
+    # APA-like title style (Times New Roman-like)
+    title_style = ParagraphStyle('Title', parent=styles['Title'], fontName='Times-Roman', fontSize=14, leading=18, alignment=1)
+    normal = ParagraphStyle('NormalSmall', parent=styles['Normal'], fontName='Times-Roman', fontSize=9, leading=12)
+    header_small = ParagraphStyle('HeaderSmall', parent=styles['Normal'], fontName='Times-Roman', fontSize=10, leading=12, alignment=1)
+
+    elements = []
+
+    # Header with logo and title
+    try:
+        logo_path = os.path.join(app.root_path, 'static', 'logo', 'huc.png')
+        if os.path.exists(logo_path):
+            img = Image(logo_path, width=60, height=60)
+        else:
+            img = None
+    except Exception:
+        img = None
+
+    title_text = 'Historial del Sistema - HUC'
+    subtitle = f"Generado: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    if tipo:
+        subtitle += f" | Tipo: {tipo}"
+    if fecha_inicio and fecha_fin:
+        subtitle += f" | Rango: {fecha_inicio} — {fecha_fin}"
+
+    # Build header table: logo left, title center
+    header_cells = []
+    if img:
+        header_cells.append(img)
+    else:
+        header_cells.append(Paragraph('<b>HUC</b>', header_small))
+    header_cells.append(Paragraph(f"<b>{title_text}</b><br/><i>{subtitle}</i>", title_style))
+
+    header_table = Table([header_cells], colWidths=[70, doc.width - 70])
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('ALIGN', (1,0), (1,0), 'CENTER'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 12),
+    ]))
+    elements.append(header_table)
+    elements.append(Spacer(1, 12))
+
+    # Prepare table data: header row then data rows
+    header_row = [c.replace('_', ' ').title() for c in cols]
+
+    # Convert each cell into a Paragraph to allow wrapping
+    data = [header_row]
+    for r in rows:
+        row_cells = []
+        for c in cols:
+            text = r.get(c, '') if isinstance(r, dict) else (r[cols.index(c)] if cols and len(r) > cols.index(c) else '')
+            # Ensure text is string
+            text = '' if text is None else str(text)
+            row_cells.append(Paragraph(text, normal))
+        data.append(row_cells)
+
+    # Column widths: distribute evenly but give more space to description if present
+    total_width = letter[0] - doc.leftMargin - doc.rightMargin
+    col_count = max(1, len(cols))
+    # if 'descripcion' present give it 30% width
+    if 'descripcion' in cols:
+        desc_idx = cols.index('descripcion')
+        desc_w = total_width * 0.30
+        other_w = (total_width - desc_w) / (col_count - 1) if col_count > 1 else total_width
+        colWidths = [other_w if i != desc_idx else desc_w for i in range(col_count)]
+    else:
+        colWidths = [total_width / col_count for _ in range(col_count)]
+
+    table = Table(data, repeatRows=1, colWidths=colWidths)
+    style = TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2F4F4F')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+        ('FONTNAME', (0,0), (-1,0), 'Times-Roman'),
+        ('FONTSIZE', (0,0), (-1,0), 10),
+        ('ALIGN', (0,0), (-1,0), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+        ('RIGHTPADDING', (0,0), (-1,-1), 6),
+    ])
+    table.setStyle(style)
+
+    elements.append(table)
+
+    # Footer with page numbers
+    def _footer(canvas, doc_):
+        canvas.saveState()
+        footer_text = f"{datetime.now().strftime('%Y-%m-%d %H:%M')} — Página {canvas.getPageNumber()}"
+        canvas.setFont('Times-Roman', 9)
+        canvas.drawCentredString(letter[0] / 2.0, 20, footer_text)
+        canvas.restoreState()
+
+    doc.build(elements, onFirstPage=_footer, onLaterPages=_footer)
+    buffer.seek(0)
+    registrar_historial('export', 'Export historial a pdf', usuario=session.get('nombre_usuario') or 'anon')
+    return send_file(buffer, as_attachment=True, download_name='historial.pdf', mimetype='application/pdf')
 
 
 if __name__ == "__main__":

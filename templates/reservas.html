@@ -99,10 +99,14 @@
 
 <div class="modal fade" id="modalReserva" tabindex="-1">
   <div class="modal-dialog">
-    <form method="POST" action="/actualizar_reserva" class="modal-content">
+    <!-- action se asigna dinámicamente al abrir el modal -->
+    <form method="POST" action="" class="modal-content" id="modal-reserva-form">
       <div class="modal-header"><h5>Editar Reserva</h5></div>
       <div class="modal-body">
         <input type="hidden" name="id" id="modal-id">
+        <!-- preserve raw ids so server receives paciente_id and equipo_id on submit -->
+        <input type="hidden" name="paciente_id" id="modal-paciente-id">
+        <input type="hidden" name="equipo_id" id="modal-equipo-id">
         <div class="mb-2">
           <label>Fecha:</label>
           <input type="date" name="fecha" id="modal-fecha" class="form-control" required>
@@ -137,8 +141,13 @@ function abrirModalReserva(idReserva) {
       document.getElementById('modal-fecha').value = data.fecha;
       document.getElementById('modal-inicio').value = data.inicio;
       document.getElementById('modal-fin').value = data.fin;
-      document.getElementById('modal-paciente').textContent = data.paciente;
-      document.getElementById('modal-equipo').textContent = data.equipo;
+  document.getElementById('modal-paciente').textContent = data.paciente;
+  document.getElementById('modal-equipo').textContent = data.equipo;
+  // populate hidden id fields so the update doesn't drop paciente/equipo
+  const pidEl = document.getElementById('modal-paciente-id');
+  const eidEl = document.getElementById('modal-equipo-id');
+  if (pidEl) pidEl.value = data.paciente_id || '';
+  if (eidEl) eidEl.value = data.equipo_id || '';
 
       document.getElementById('btn-eliminar-reserva').onclick = () => {
         if (confirm('¿Eliminar esta reserva?')) {
@@ -148,6 +157,11 @@ function abrirModalReserva(idReserva) {
       };
 
       new bootstrap.Modal(document.getElementById('modalReserva')).show();
+      // Asignar action del formulario al endpoint correcto que acepta POST /editar_reserva/<id>
+      const form = document.getElementById('modal-reserva-form');
+      if (form) {
+        form.action = `/editar_reserva/${idReserva}`;
+      }
     });
 }
 
