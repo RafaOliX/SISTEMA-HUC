@@ -259,6 +259,19 @@ def usuarios():
     usuarios = cur.fetchall()
     print("Usuarios encontrados:", usuarios)  # 👈 imprime en consola para verificar
 
+    # Mostrar la lista de usuarios en la interfaz de administración.
+    # Reutilizamos la plantilla `pendientes.html` (espera una variable `pendientes`).
+    try:
+        return render_template('pendientes.html', pendientes=usuarios)
+    except Exception as e:
+        # Evitar que la vista devuelva None (causa TypeError en Flask)
+        import traceback
+        tb = traceback.format_exc()
+        print('Error renderizando pendientes.html:', e)
+        print(tb)
+        # Devolvemos un HTML sencillo con trazas para que el navegador no reciba None
+        safe_html = f"<h3>Error al mostrar usuarios</h3><pre>{str(e)}\n\n{tb}</pre>"
+        return safe_html, 500
 
 
 @app.route('/pending_users')

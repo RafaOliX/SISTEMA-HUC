@@ -1,0 +1,13 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+<h3>🔑 Cambiar contraseña para {{ username }}</h3>
+<form method="POST" action="{{ url_for('change_password', username=username) }}">
+  <div class="mb-3">
+    <label for="nueva_contraseña" class="form-label">Nueva contraseña</label>
+    <input type="password" class="form-control" id="nueva_contraseña" name="nueva_contraseña" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Actualizar contraseña</button>
+  <a href="{{ url_for('usuarios') }}" class="btn btn-secondary">Cancelar</a>
+</form>
+{% endblock %}
